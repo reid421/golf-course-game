@@ -45,6 +45,7 @@ A mobile-first web-based golf course decision-making game. The player makes stra
 - Distance variance: ±5% random on every shot
 - Handicap-based lateral dispersion: Gaussian model — sigma interpolated from anchors (+10 hcp → σ≈1.2 yd, 10 → σ≈4.8 yd, 20 → σ≈9.1 yd, 30 → σ≈15 yd); produces realistic occasional big misses
 - Ball flight: parabolic arc (apex at 40% of distance), two bounces, short roll
+- Bunker shots apply a 35% distance reduction to the following shot
 
 **Player profile**
 - Fullscreen profile overlay shown on first load (no localStorage profile found); skipped if profile exists
@@ -57,22 +58,47 @@ A mobile-first web-based golf course decision-making game. The player makes stra
 - Scrollable panel on left side of behind-ball view (130px wide, 52px min row height, mobile touch targets)
 - Hidden in overhead view
 - Selected club highlighted in yellow; distance shown in yds
+- Clubs over 170 yds are greyed out and unclickable when ball is in the rough
+
+**Stroke counter & scoring**
+- Stroke count increments on every Hit press and displayed in a centred HUD at the top of the screen
+- Water hazard penalty strokes also increment the counter
+- Hole complete triggers when ball comes to rest within 5 yards (world units) of the pin
+- Hole complete state locks the Hit button and shows the post-hole summary overlay
+- Par is hard-coded at 4 for the current hole
+
+**Lie detection & penalties**
+- After each shot rolls to rest, `detectLie(x, z)` classifies the ball position:
+  - **Fairway** — point-in-polygon test for the L-shaped fairway shape
+  - **Green** — circle test (radius 13 units) around the pin
+  - **Water** — rotated ellipse test (rx 11, rz 6, rotated to match the mesh)
+  - **Bunker** — axis-aligned ellipse test (rx 9, rz 6)
+  - **Rough** — everything else
+- Penalties applied:
+  - *Rough*: clubs over 170 yds restricted in the club panel; lie banner shown
+  - *Water*: +1 penalty stroke, ball respawned at last safe position (saved before each shot), lie banner shown
+  - *Bunker*: `bunkerPenaltyActive` flag set; next shot distance multiplied by 0.65; flag cleared after use
+- Lie status shown in a banner HUD below the score display; hidden when switching to overhead view
+
+**Overhead view improvements**
+- Distance-to-pin indicator (in yards) shown in overhead view, updates after each shot
+- Ball tracked by a pulsing yellow RingGeometry marker (scales sinusoidally) visible from above
+- Ring hidden in behind-ball view
+
+**Post-hole summary overlay**
+- Appears over the 3D scene (z-index 200) when the hole-complete condition is met
+- Displays: strokes taken, par, score vs par (E / +1 / −1 etc.), score name (Birdie / Bogey etc.), emoji icon
+- Decision-quality note based on water hazard hits and stroke count
+- "Play Next Hole" button reloads the page (placeholder until more holes are built)
 
 **Stroke flow**
-- Fully playable loop: profile setup → tee shot → aim → hit → land → auto-aim at pin → repeat
-
-**Not yet implemented**
-- Stroke counter and scoring display
-- Lie detection (rough, water, bunker penalties and messaging)
-- Overhead view improvements (distance to pin, ball position indicator)
-- Post-hole summary screen
-- Putting mechanics for on-green play
+- Fully playable loop: profile setup → tee shot → aim → hit → land → lie check → auto-aim at pin → repeat → hole complete → summary
 
 ---
 
 ### `golf-profile-step1.html` (superseded)
-- Original standalone profile setup UI — all logic now embedded in `golf-hole.html`
-- Play button still shows placeholder alert; not wired to game
+- Original standalone profile setup UI — all logic now embedded in `index.html`
+- Play button wired to navigate to `index.html`
 
 ### `golf-poc.html`
 - Earlier prototype; placeholder for historical reference only
@@ -91,6 +117,9 @@ A mobile-first web-based golf course decision-making game. The player makes stra
 - **Canvas z-index** — Three.js canvas styled `position:absolute; top:0; left:0; z-index:0` so it sits behind the HUD (z-index 10) and profile overlay (z-index 100)
 - **Player profile: handicap drives dispersion only; player inputs their own club distances** — real distances matter more than algorithm-guessed ones
 - **Shot distance from club, not click position** — ball travels the selected club's distance in the aimed direction, not to wherever the player clicked
+- **Lie detection uses geometric zone tests matching the visual meshes** — water and bunker ellipses use the same center/radii as the Three.js geometry; fairway uses point-in-polygon against the Shape vertices
+- **`lastSafePosition` saved before every shot** — used for water hazard respawn; guarantees a valid position is always available when `onBallAtRest` runs
+- **`animDur` guarded with `Math.max(..., 0.05)`** — prevents divide-by-zero if flight distance is ever zero
 
 ---
 
@@ -106,9 +135,8 @@ A mobile-first web-based golf course decision-making game. The player makes stra
 
 ## Next Steps (priority order)
 
-1. Add stroke counter and scoring display (HUD element, updates each shot)
-2. Add lie detection — when ball lands in rough, water, or bunker, apply appropriate penalties and messaging
-3. Overhead view improvements — distance to pin indicator, show ball position clearly
-4. Wire Play button in `golf-profile-step1.html` to launch `golf-hole.html`
-5. Add post-hole summary screen showing strokes taken and decision feedback
-6. Begin building out remaining Province Lake holes
+1. Putting mechanics for on-green play (currently hole completes at 5 yards from pin, skipping the putt)
+2. Begin building out remaining Province Lake holes
+3. Add a multi-hole scorecard / round tracker
+4. Sound effects for shot, water splash, hole-in
+5. Mobile polish — swipe gestures, haptic feedback on hit
