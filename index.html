@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Low-Poly Golf Hole</title>
+  <style>
+    /* ── Reset & base ──────────────────────────────────────────────────────── */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; }
+
+    /* ── Game HUD buttons ──────────────────────────────────────────────────── */
+    #switchBtn {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      padding: 10px 22px;
+      font-size: 15px;
+      font-family: sans-serif;
+      cursor: pointer;
+      background: rgba(0, 0, 0, 0.65);
+      color: #fff;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      border-radius: 6px;
+      letter-spacing: 0.04em;
+      z-index: 10;
+      transition: background 0.15s;
+    }
+    #switchBtn:hover { background: rgba(0, 0, 0, 0.88); }
+
+    #hitBtn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      padding: 10px 28px;
+      font-size: 16px;
+      font-family: sans-serif;
+      font-weight: bold;
+      cursor: pointer;
+      background: rgba(220, 50, 30, 0.85);
+      color: #fff;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      border-radius: 6px;
+      letter-spacing: 0.05em;
+      z-index: 10;
+      transition: background 0.15s;
+    }
+    #hitBtn:hover { background: rgba(200, 30, 10, 0.95); }
+    #hitBtn:disabled { background: rgba(120, 120, 120, 0.7); cursor: default; }
+
+    #hint {
+      position: absolute;
+      bottom: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.85);
+      font-family: sans-serif;
+      font-size: 14px;
+      background: rgba(0,0,0,0.45);
+      padding: 6px 16px;
+      border-radius: 20px;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Edit Profile button — shown only in overhead view */
+    #editProfileBtn {
+      position: absolute;
+      bottom: 22px;
+      right: 20px;
+      padding: 8px 18px;
+      font-size: 13px;
+      font-family: sans-serif;
+      cursor: pointer;
+      background: rgba(0, 0, 0, 0.60);
+      color: rgba(255,255,255,0.75);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 6px;
+      letter-spacing: 0.03em;
+      z-index: 10;
+      transition: background 0.15s, color 0.15s;
+      display: none; /* shown only in overhead view via JS */
+    }
+    #editProfileBtn:hover {
+      background: rgba(0,0,0,0.88);
+      color: #fff;
+    }
+
+    /* ── Stroke / Score HUD ─────────────────────────────────────────────────── */
+    #scoreHud {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.70);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 8px;
+      padding: 6px 18px;
+      font-family: sans-serif;
+      font-size: 14px;
+      color: #fff;
+      z-index: 10;
+      text-align: center;
+      pointer-events: none;
+      min-width: 160px;
+    }
+    #scoreHud .hud-strokes {
+      font-size: 22px;
+      font-weight: 700;
+      color: #ffd232;
+      line-height: 1.1;
+    }
+    #scoreHud .hud-label {
+      font-size: 11px;
+      color: rgba(255,255,255,0.55);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    #scoreHud .hud-par {
+      font-size: 11px;
+      color: rgba(255,255,255,0.50);
+      margin-top: 1px;
+    }
+
+    /* ── Lie status banner ──────────────────────────────────────────────────── */
+    #lieStatus {
+      position: absolute;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.80);
+      border: 1px solid rgba(255,200,50,0.5);
+      border-radius: 8px;
+      padding: 7px 18px;
+      font-family: sans-serif;
+      font-size: 13px;
+      color: #ffd232;
+      z-index: 10;
+      text-align: center;
+      pointer-events: none;
+      display: none;
+      max-width: 320px;
+      white-space: nowrap;
+    }
+
+    /* ── Overhead distance-to-pin indicator ─────────────────────────────────── */
+    #overheadInfo {
+      position: absolute;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.70);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      padding: 6px 16px;
+      font-family: sans-serif;
+      font-size: 13px;
+      color: #fff;
+      z-index: 10;
+      text-align: center;
+      pointer-events: none;
+      display: none;
+    }
+    #overheadInfo .oi-dist {
+      font-size: 20px;
+      font-weight: 700;
+      color: #7effb2;
+    }
+    #overheadInfo .oi-label {
+      font-size: 10px;
+      color: rgba(255,255,255,0.5);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* ── Club panel (behind-ball view only) ────────────────────────────────── */
+    #clubPanel {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 130px;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.72);
+      border-right: 1px solid rgba(255,255,255,0.12);
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+      overflow: hidden;
+    }
+    #clubPanel.hidden { display: none; }
+    #clubPanelHeader {
+      padding: 12px 10px 8px;
+      font-family: sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      flex-shrink: 0;
+    }
+    #clubListPanel {
+      overflow-y: auto;
+      flex: 1;
+      -webkit-overflow-scrolling: touch;
+    }
+    #clubListPanel::-webkit-scrollbar { width: 3px; }
+    #clubListPanel::-webkit-scrollbar-track { background: transparent; }
+    #clubListPanel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+    .club-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      width: 100%;
+      min-height: 52px;
+      padding: 8px 12px;
+      border: none;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      background: transparent;
+      color: #fff;
+      font-family: sans-serif;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.1s;
+    }
+    .club-btn:hover { background: rgba(255,255,255,0.08); }
+    .club-btn.selected { background: rgba(255, 210, 50, 0.2); border-left: 3px solid #ffd232; }
+    .club-btn.restricted { opacity: 0.35; cursor: not-allowed; }
+    .club-btn .club-btn-name { font-size: 13px; font-weight: 600; line-height: 1.2; }
+    .club-btn .club-btn-dist { font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1.2; }
+    .club-btn.selected .club-btn-dist { color: #ffd232; }
+
+    /* Shift Switch View button right when club panel is visible */
+    body.show-clubs #switchBtn { left: 145px; }
+
+    /* ── Post-hole summary overlay ──────────────────────────────────────────── */
+    #summaryOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.88);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+    #summaryOverlay.hidden { display: none; }
+    #summaryCard {
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 16px;
+      padding: 2.5rem 2rem;
+      max-width: 360px;
+      width: 90%;
+      text-align: center;
+      color: #e6edf3;
+    }
+    #summaryCard .sum-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    #summaryCard .sum-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+      letter-spacing: -0.02em;
+    }
+    #summaryCard .sum-score-name {
+      font-size: 1rem;
+      color: #7d8590;
+      margin-bottom: 1.75rem;
+    }
+    #summaryCard .sum-stats {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    #summaryCard .sum-stat {
+      flex: 1;
+      background: rgba(63, 185, 80, 0.07);
+      border: 1px solid rgba(63, 185, 80, 0.18);
+      border-radius: 10px;
+      padding: 0.9rem 0.5rem;
+    }
+    #summaryCard .sum-stat-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #3fb950;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+    #summaryCard .sum-stat-label {
+      font-size: 0.68rem;
+      color: #7d8590;
+      margin-top: 0.3rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    #summaryCard .sum-note {
+      font-size: 0.85rem;
+      color: #7d8590;
+      background: #0c0f14;
+      border: 1px solid #21262d;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+    #summaryCard .sum-btn {
+      display: block;
+      width: 100%;
+      padding: 0.9rem;
+      background: #3fb950;
+      color: #0c0f14;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: opacity 0.15s;
+    }
+    #summaryCard .sum-btn:hover { opacity: 0.88; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       Profile overlay
+    ═══════════════════════════════════════════════════════════════════════ */
+    #profileOverlay {
+      --po-bg:          #0c0f14;
+      --po-surface:     #161b22;
+      --po-border:      #21262d;
+      --po-text:        #e6edf3;
+      --po-muted:       #7d8590;
+      --po-accent:      #3fb950;
+      --po-accent-dim:  rgba(63, 185, 80, 0.07);
+      --po-accent-ring: rgba(63, 185, 80, 0.18);
+      --po-accent-glow: rgba(63, 185, 80, 0.22);
+
+      position: fixed;
+      inset: 0;
+      background: var(--po-bg);
+      color: var(--po-text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-y: auto;
+      padding: 3.5rem 1.5rem 3rem;
+      -webkit-overflow-scrolling: touch;
+    }
+    #profileOverlay.hidden { display: none; }
+
+    #profileOverlay .po-game-title {
+      font-size: 0.78rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--po-muted);
+      margin-bottom: 1.75rem;
+    }
+
+    /* Screens inside overlay */
+    #profileOverlay .po-screen {
+      display: none;
+      width: 100%;
+      max-width: 460px;
+    }
+    #profileOverlay .po-screen.active { display: block; }
+
+    /* Card */
+    #profileOverlay .po-card {
+      background: var(--po-surface);
+      border: 1px solid var(--po-border);
+      border-radius: 14px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+    }
+
+    /* Progress bars */
+    #profileOverlay .po-progress-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 2.5rem;
+    }
+    #profileOverlay .po-progress-bar {
+      flex: 1;
+      height: 3px;
+      border-radius: 99px;
+      background: var(--po-border);
+      overflow: hidden;
+    }
+    #profileOverlay .po-progress-fill {
+      height: 100%;
+      width: 0;
+      background: var(--po-accent);
+      border-radius: 99px;
+    }
+    #profileOverlay .po-progress-bar.done .po-progress-fill { width: 100%; }
+    #profileOverlay .po-progress-label {
+      font-size: 0.72rem;
+      color: var(--po-muted);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    /* Typography */
+    #profileOverlay .po-heading {
+      font-size: 1.35rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.4rem;
+      line-height: 1.3;
+    }
+    #profileOverlay .po-subtext {
+      font-size: 0.875rem;
+      color: var(--po-muted);
+      line-height: 1.55;
+      margin-bottom: 2rem;
+    }
+
+    /* Handicap display */
+    #profileOverlay .po-hcp-display {
+      text-align: center;
+      margin-bottom: 2rem;
+      padding: 1.25rem;
+      background: var(--po-accent-dim);
+      border: 1px solid var(--po-accent-ring);
+      border-radius: 10px;
+    }
+    #profileOverlay .po-hcp-number {
+      font-size: 3rem;
+      font-weight: 700;
+      color: var(--po-accent);
+      letter-spacing: -0.04em;
+      line-height: 1;
+      margin-bottom: 0.35rem;
+      font-variant-numeric: tabular-nums;
+    }
+    #profileOverlay .po-hcp-desc {
+      font-size: 0.875rem;
+      color: var(--po-muted);
+    }
+
+    /* Slider */
+    #profileOverlay .po-slider-wrap { margin-bottom: 2.5rem; }
+    #profileOverlay .po-slider-ends {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: var(--po-muted);
+      margin-bottom: 0.65rem;
+    }
+    #profileOverlay input[type="range"] {
+      width: 100%;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      border-radius: 99px;
+      outline: none;
+      cursor: pointer;
+      background: var(--po-border);
+    }
+    #profileOverlay input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: var(--po-accent);
+      cursor: pointer;
+      box-shadow: 0 0 0 4px var(--po-accent-glow);
+      transition: box-shadow 0.15s;
+    }
+    #profileOverlay input[type="range"]:hover::-webkit-slider-thumb,
+    #profileOverlay input[type="range"]:focus::-webkit-slider-thumb {
+      box-shadow: 0 0 0 7px var(--po-accent-glow);
+    }
+    #profileOverlay input[type="range"]::-moz-range-thumb {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: var(--po-accent);
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 0 0 4px var(--po-accent-glow);
+    }
+    #profileOverlay input[type="range"]::-moz-range-track {
+      height: 6px; border-radius: 99px; background: transparent;
+    }
+
+    /* Club list in overlay */
+    #profileOverlay .po-club-list { margin-bottom: 2rem; }
+    #profileOverlay .po-club-group-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--po-muted);
+      padding: 1.1rem 0 0.45rem;
+    }
+    #profileOverlay .po-club-group-label:first-child { padding-top: 0; }
+    #profileOverlay .po-club-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--po-border);
+    }
+    #profileOverlay .po-club-row:last-child { border-bottom: none; }
+    #profileOverlay .po-club-name {
+      flex: 1;
+      font-size: 0.9rem;
+      color: var(--po-text);
+    }
+    #profileOverlay .po-club-row.is-putter .po-club-name { color: var(--po-muted); }
+    #profileOverlay .po-dist-input {
+      width: 68px;
+      background: var(--po-bg);
+      border: 1px solid var(--po-border);
+      border-radius: 6px;
+      color: var(--po-text);
+      padding: 0.375rem 0.5rem;
+      font-size: 0.9rem;
+      font-family: inherit;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      transition: border-color 0.15s;
+      -moz-appearance: textfield;
+    }
+    #profileOverlay .po-dist-input::-webkit-outer-spin-button,
+    #profileOverlay .po-dist-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+    #profileOverlay .po-dist-input:focus { outline: none; border-color: var(--po-accent); }
+    #profileOverlay .po-dist-input:disabled { opacity: 0.3; cursor: not-allowed; }
+    #profileOverlay .po-unit {
+      font-size: 0.75rem;
+      color: var(--po-muted);
+      min-width: 22px;
+    }
+    #profileOverlay .po-club-row.is-putter .po-unit { opacity: 0.35; }
+
+    /* Confirmation */
+    #profileOverlay .po-confirm-check {
+      font-size: 2.25rem;
+      color: var(--po-accent);
+      text-align: center;
+      margin-bottom: 0.75rem;
+    }
+    #profileOverlay .po-confirm-stats {
+      display: flex;
+      gap: 0.75rem;
+      margin: 1.75rem 0 1.25rem;
+    }
+    #profileOverlay .po-stat-box {
+      flex: 1;
+      background: var(--po-accent-dim);
+      border: 1px solid var(--po-accent-ring);
+      border-radius: 10px;
+      padding: 1rem 0.75rem;
+      text-align: center;
+    }
+    #profileOverlay .po-stat-value {
+      font-size: 1.85rem;
+      font-weight: 700;
+      color: var(--po-accent);
+      letter-spacing: -0.03em;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    #profileOverlay .po-stat-label {
+      font-size: 0.7rem;
+      color: var(--po-muted);
+      margin-top: 0.3rem;
+      letter-spacing: 0.03em;
+    }
+    #profileOverlay .po-key-clubs {
+      font-size: 0.8rem;
+      color: var(--po-muted);
+      text-align: center;
+      margin-bottom: 2rem;
+      line-height: 1.9;
+    }
+
+    /* Overlay buttons */
+    #profileOverlay .po-btn-primary {
+      display: block;
+      width: 100%;
+      padding: 0.9rem 1rem;
+      background: var(--po-accent);
+      color: #0c0f14;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.975rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: opacity 0.15s, transform 0.1s;
+      text-align: center;
+    }
+    #profileOverlay .po-btn-primary:hover { opacity: 0.88; }
+    #profileOverlay .po-btn-primary:active { transform: scale(0.98); }
+    #profileOverlay .po-btn-ghost {
+      display: block;
+      width: 100%;
+      margin-top: 0.75rem;
+      padding: 0.6rem;
+      background: transparent;
+      color: var(--po-muted);
+      border: none;
+      font-size: 0.85rem;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: center;
+      transition: color 0.15s;
+    }
+    #profileOverlay .po-btn-ghost:hover { color: var(--po-text); }
+
+    @media (max-width: 480px) {
+      #profileOverlay { padding: 2.5rem 1rem 2.5rem; }
+      #profileOverlay .po-card { padding: 2rem 1.25rem; }
+      #profileOverlay .po-hcp-number { font-size: 2.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       Profile Overlay
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div id="profileOverlay">
+    <p class="po-game-title">⛳ Golf Game</p>
+
+    <!-- Step 1 — Handicap -->
+    <div id="po-screen-step1" class="po-screen active">
+      <div class="po-card">
+        <div class="po-progress-wrap">
+          <div class="po-progress-bar done"><div class="po-progress-fill"></div></div>
+          <div class="po-progress-bar"><div class="po-progress-fill"></div></div>
+          <span class="po-progress-label">Step 1 of 2</span>
+        </div>
+        <h1 class="po-heading">What's your handicap index?</h1>
+        <p class="po-subtext">We'll use this to pre-fill your club distances and shape how dispersion works in the game.</p>
+        <div class="po-hcp-display">
+          <div class="po-hcp-number" id="po-hcpNumber">0</div>
+          <div class="po-hcp-desc"   id="po-hcpDesc">Club Competitor</div>
+        </div>
+        <div class="po-slider-wrap">
+          <div class="po-slider-ends">
+            <span>+10 — Elite</span>
+            <span>30 — Beginner</span>
+          </div>
+          <input type="range" id="po-handicapSlider" min="-10" max="30" step="1" value="0">
+        </div>
+        <button class="po-btn-primary" id="po-nextBtn">Next →</button>
+      </div>
+    </div>
+
+    <!-- Step 2 — Bag -->
+    <div id="po-screen-step2" class="po-screen">
+      <div class="po-card">
+        <div class="po-progress-wrap">
+          <div class="po-progress-bar done"><div class="po-progress-fill"></div></div>
+          <div class="po-progress-bar done"><div class="po-progress-fill"></div></div>
+          <span class="po-progress-label">Step 2 of 2</span>
+        </div>
+        <h1 class="po-heading">What's in your bag?</h1>
+        <p class="po-subtext">Enter your average carry distance for each club. Leave blank for clubs you don't carry.</p>
+        <div class="po-club-list" id="po-clubList"></div>
+        <button class="po-btn-primary" id="po-saveBtn">Save My Bag</button>
+        <button class="po-btn-ghost"   id="po-backBtn">← Back</button>
+      </div>
+    </div>
+
+    <!-- Confirmation -->
+    <div id="po-screen-confirm" class="po-screen">
+      <div class="po-card">
+        <div class="po-confirm-check">✓</div>
+        <h1 class="po-heading" style="text-align:center">You're all set.</h1>
+        <p class="po-subtext" style="text-align:center;margin-bottom:0">Your profile is saved and ready to go.</p>
+        <div class="po-confirm-stats">
+          <div class="po-stat-box">
+            <div class="po-stat-value" id="po-confHcp">—</div>
+            <div class="po-stat-label" id="po-confHcpDesc">Handicap</div>
+          </div>
+          <div class="po-stat-box">
+            <div class="po-stat-value" id="po-confClubs">—</div>
+            <div class="po-stat-label">Clubs in bag</div>
+          </div>
+        </div>
+        <div class="po-key-clubs" id="po-confKeyClubs"></div>
+        <button class="po-btn-primary" id="po-playBtn">Play →</button>
+        <button class="po-btn-ghost"   id="po-editBtn">← Edit profile</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       Post-hole Summary Overlay
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div id="summaryOverlay" class="hidden">
+    <div id="summaryCard">
+      <div class="sum-icon" id="sumIcon">🏌️</div>
+      <div class="sum-title" id="sumTitle">Hole Complete!</div>
+      <div class="sum-score-name" id="sumScoreName">Par</div>
+      <div class="sum-stats">
+        <div class="sum-stat">
+          <div class="sum-stat-value" id="sumStrokes">—</div>
+          <div class="sum-stat-label">Strokes</div>
+        </div>
+        <div class="sum-stat">
+          <div class="sum-stat-value" id="sumPar">4</div>
+          <div class="sum-stat-label">Par</div>
+        </div>
+        <div class="sum-stat">
+          <div class="sum-stat-value" id="sumVsPar">E</div>
+          <div class="sum-stat-label">vs Par</div>
+        </div>
+      </div>
+      <div class="sum-note" id="sumNote">Good round!</div>
+      <button class="sum-btn" id="sumNextBtn">Play Next Hole →</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       Game HUD
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div id="clubPanel" class="hidden">
+    <div id="clubPanelHeader">Club</div>
+    <div id="clubListPanel"></div>
+  </div>
+
+  <button id="switchBtn">Switch View</button>
+  <button id="hitBtn">Hit</button>
+  <button id="editProfileBtn">Edit Profile</button>
+
+  <!-- Stroke / score HUD -->
+  <div id="scoreHud">
+    <div class="hud-label">Strokes</div>
+    <div class="hud-strokes" id="hudStrokes">0</div>
+    <div class="hud-par" id="hudPar">Par 4</div>
+  </div>
+
+  <!-- Lie status banner -->
+  <div id="lieStatus"></div>
+
+  <!-- Overhead distance-to-pin indicator -->
+  <div id="overheadInfo">
+    <div class="oi-dist" id="overheadDist">—</div>
+    <div class="oi-label">yds to pin</div>
+  </div>
+
+  <div id="hint">Tap the fairway to aim, then press Hit</div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PROFILE OVERLAY — self-contained logic
+  // ═══════════════════════════════════════════════════════════════════════════
+  (function() {
+    const CLUBS = [
+      { group: 'Woods',   name: 'Driver', elite: 290, beginner: 180 },
+      {                   name: '3-Wood', elite: 270, beginner: 160 },
+      {                   name: '5-Wood', elite: 250, beginner: 150 },
+      { group: 'Irons',   name: '4-Iron', elite: 220, beginner: 130 },
+      {                   name: '5-Iron', elite: 210, beginner: 120 },
+      {                   name: '6-Iron', elite: 195, beginner: 110 },
+      {                   name: '7-Iron', elite: 180, beginner: 100 },
+      {                   name: '8-Iron', elite: 165, beginner:  90 },
+      {                   name: '9-Iron', elite: 150, beginner:  80 },
+      { group: 'Wedges',  name: 'PW',     elite: 135, beginner:  70 },
+      {                   name: 'GW',     elite: 120, beginner:  60 },
+      {                   name: 'SW',     elite: 105, beginner:  50 },
+      {                   name: 'LW',     elite:  90, beginner:  40 },
+      { group: 'Putting', name: 'Putter', elite:   0, beginner:   0, locked: true },
+    ];
+
+    const ANCHORS = [
+      { v: -10, label: 'Elite' },
+      { v:  -5, label: 'Scratch' },
+      { v:   0, label: 'Club Competitor' },
+      { v:  10, label: 'Casual' },
+      { v:  20, label: 'High Handicap' },
+      { v:  30, label: 'Beginner' },
+    ];
+
+    function formatHcp(val) { return val < 0 ? `+${Math.abs(val)}` : `${val}`; }
+    function getDesc(val) {
+      for (let i = ANCHORS.length - 1; i >= 0; i--) {
+        if (val >= ANCHORS[i].v) return ANCHORS[i].label;
+      }
+      return ANCHORS[0].label;
+    }
+    function interpolateDist(handicapVal, club) {
+      if (club.locked) return 0;
+      const t = Math.max(0, Math.min(1, (handicapVal + 10) / 40));
+      return Math.round(club.elite + t * (club.beginner - club.elite));
+    }
+
+    function poShowScreen(id) {
+      document.querySelectorAll('#profileOverlay .po-screen')
+        .forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      document.getElementById('profileOverlay').scrollTop = 0;
+    }
+
+    const slider = document.getElementById('po-handicapSlider');
+    const numEl  = document.getElementById('po-hcpNumber');
+    const descEl = document.getElementById('po-hcpDesc');
+
+    function updateSlider() {
+      const val = parseInt(slider.value, 10);
+      numEl.textContent  = formatHcp(val);
+      descEl.textContent = getDesc(val);
+      const pct = ((val - parseInt(slider.min, 10)) / (parseInt(slider.max, 10) - parseInt(slider.min, 10))) * 100;
+      slider.style.background =
+        `linear-gradient(to right, #3fb950 ${pct}%, #21262d ${pct}%)`;
+    }
+    slider.addEventListener('input', updateSlider);
+
+    function buildClubRows(handicapVal) {
+      const container = document.getElementById('po-clubList');
+      container.innerHTML = '';
+      CLUBS.forEach((club, i) => {
+        if (club.group) {
+          const header = document.createElement('div');
+          header.className = 'po-club-group-label';
+          header.textContent = club.group;
+          container.appendChild(header);
+        }
+        const dist = interpolateDist(handicapVal, club);
+        const row = document.createElement('div');
+        row.className = 'po-club-row' + (club.locked ? ' is-putter' : '');
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'po-club-name';
+        nameSpan.textContent = club.name;
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'po-dist-input';
+        input.id = `po-dist-${i}`;
+        input.min = '0';
+        input.max = '400';
+        input.value = dist > 0 ? dist : '';
+        input.placeholder = '—';
+        if (club.locked) { input.value = '0'; input.disabled = true; }
+        const unit = document.createElement('span');
+        unit.className = 'po-unit';
+        unit.textContent = 'yds';
+        row.appendChild(nameSpan);
+        row.appendChild(input);
+        row.appendChild(unit);
+        container.appendChild(row);
+      });
+    }
+
+    function prefillClubRows(savedClubs) {
+      CLUBS.forEach((club, i) => {
+        if (club.locked) return;
+        const el = document.getElementById(`po-dist-${i}`);
+        if (!el) return;
+        const saved = savedClubs.find(c => c.name === club.name);
+        if (saved && saved.distance > 0) el.value = saved.distance;
+      });
+    }
+
+    function renderConfirmation(profile) {
+      const hcp   = profile.handicap;
+      const clubs = profile.clubs || [];
+      document.getElementById('po-confHcp').textContent     = formatHcp(hcp);
+      document.getElementById('po-confHcpDesc').textContent = getDesc(hcp);
+      const activeClubs = clubs.filter(c => c.name !== 'Putter');
+      document.getElementById('po-confClubs').textContent   = activeClubs.length;
+      const highlights = ['Driver', '7-Iron', 'SW']
+        .map(name => clubs.find(c => c.name === name))
+        .filter(Boolean)
+        .map(c => `${c.name}&nbsp;&nbsp;${c.distance} yds`);
+      document.getElementById('po-confKeyClubs').innerHTML = highlights.join('<br>');
+    }
+
+    window.openProfileOverlay = function() {
+      const overlay = document.getElementById('profileOverlay');
+      overlay.classList.remove('hidden');
+      const existing = safeReadProfile();
+      if (existing.handicap !== undefined) slider.value = existing.handicap;
+      updateSlider();
+      if (existing.handicap !== undefined && existing.clubs !== undefined) {
+        renderConfirmation(existing);
+        poShowScreen('po-screen-confirm');
+      } else {
+        poShowScreen('po-screen-step1');
+      }
+    };
+
+    function closeOverlay() {
+      document.getElementById('profileOverlay').classList.add('hidden');
+    }
+
+    function safeReadProfile() {
+      try { return JSON.parse(localStorage.getItem('golf_player_profile') || '{}'); }
+      catch(e) { return {}; }
+    }
+
+    document.getElementById('po-nextBtn').addEventListener('click', () => {
+      const val = parseInt(slider.value, 10);
+      const profile = safeReadProfile();
+      profile.handicap = val;
+      localStorage.setItem('golf_player_profile', JSON.stringify(profile));
+      buildClubRows(val);
+      const refreshed = safeReadProfile();
+      if (refreshed.clubs && refreshed.clubs.length > 0) prefillClubRows(refreshed.clubs);
+      poShowScreen('po-screen-step2');
+    });
+
+    document.getElementById('po-backBtn').addEventListener('click', () => {
+      poShowScreen('po-screen-step1');
+    });
+
+    document.getElementById('po-saveBtn').addEventListener('click', () => {
+      const clubs = [];
+      CLUBS.forEach((club, i) => {
+        if (club.locked) { clubs.push({ name: club.name, distance: 0 }); return; }
+        const raw = document.getElementById(`po-dist-${i}`).value.trim();
+        const dist = parseInt(raw, 10);
+        if (!isNaN(dist) && dist > 0) clubs.push({ name: club.name, distance: dist });
+      });
+      const profile = safeReadProfile();
+      profile.clubs = clubs;
+      localStorage.setItem('golf_player_profile', JSON.stringify(profile));
+      renderConfirmation(profile);
+      poShowScreen('po-screen-confirm');
+    });
+
+    document.getElementById('po-editBtn').addEventListener('click', () => {
+      const profile = safeReadProfile();
+      if (profile.handicap !== undefined) slider.value = profile.handicap;
+      updateSlider();
+      poShowScreen('po-screen-step1');
+    });
+
+    document.getElementById('po-playBtn').addEventListener('click', () => {
+      closeOverlay();
+      if (typeof window.applyProfile === 'function') window.applyProfile();
+    });
+
+    const existing = safeReadProfile();
+    if (existing.handicap !== undefined && existing.clubs !== undefined) {
+      slider.value = existing.handicap;
+      updateSlider();
+      renderConfirmation(existing);
+      poShowScreen('po-screen-confirm');
+    } else {
+      if (existing.handicap !== undefined) slider.value = existing.handicap;
+      updateSlider();
+      poShowScreen('po-screen-step1');
+    }
+  })();
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GAME — Three.js scene, shot physics, club panel
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ─── Constants ────────────────────────────────────────────────────────────
+  const HOLE_PAR = 4;
+  const PIN_X = 38, PIN_Z = 68;
+  const HOLE_IN_RADIUS_YARDS = 5; // yards from pin = hole complete
+  // 110 world units ≈ 360 yards
+  const YARDS_PER_UNIT = 110 / 360;
+  const HOLE_IN_RADIUS_UNITS = HOLE_IN_RADIUS_YARDS * YARDS_PER_UNIT;
+
+  // ─── Player profile state ─────────────────────────────────────────────────
+  const DEFAULT_CLUBS = [
+    { name: 'Driver', distance: 210 },
+    { name: '3-Wood', distance: 190 },
+    { name: '5-Iron', distance: 160 },
+    { name: '7-Iron', distance: 140 },
+    { name: '9-Iron', distance: 120 },
+    { name: 'PW',     distance: 100 },
+    { name: 'SW',     distance:  70 },
+  ];
+  const DEFAULT_HANDICAP = 20;
+
+  let playerHandicap  = DEFAULT_HANDICAP;
+  let playerClubs     = DEFAULT_CLUBS.slice();
+  let selectedClubIdx = 0;
+
+  // ─── Stroke counter & scoring ─────────────────────────────────────────────
+  let strokeCount = 0;
+  let holeComplete = false;
+
+  // Tracks penalties applied this shot (for water hazard repositioning, etc.)
+  let lastSafePosition = null;
+  // What terrain the ball is currently resting on
+  let currentLie = 'fairway'; // 'fairway' | 'rough' | 'water' | 'bunker' | 'green'
+  // Bunker distance multiplier persists until next shot is taken
+  let bunkerPenaltyActive = false;
+
+  // Decisions made during the hole for the post-hole note
+  let wentOverWater = false;
+  let waterHazardHits = 0;
+
+  function updateStrokeHud() {
+    const el = document.getElementById('hudStrokes');
+    if (el) el.textContent = strokeCount;
+  }
+
+  function setLieStatus(msg, visible) {
+    const el = document.getElementById('lieStatus');
+    if (!el) return;
+    if (visible && msg) {
+      el.textContent = msg;
+      el.style.display = 'block';
+    } else {
+      el.style.display = 'none';
+    }
+  }
+
+  // ─── Scoring helpers ──────────────────────────────────────────────────────
+  function getScoreName(strokes, par) {
+    const diff = strokes - par;
+    if (strokes === 1) return 'Hole in One!';
+    if (diff <= -3)   return 'Albatross';
+    if (diff === -2)  return 'Eagle';
+    if (diff === -1)  return 'Birdie';
+    if (diff === 0)   return 'Par';
+    if (diff === 1)   return 'Bogey';
+    if (diff === 2)   return 'Double Bogey';
+    if (diff === 3)   return 'Triple Bogey';
+    return `+${diff}`;
+  }
+
+  function getScoreIcon(strokes, par) {
+    const diff = strokes - par;
+    if (strokes === 1) return '🏆';
+    if (diff <= -2) return '🦅';
+    if (diff === -1) return '🐦';
+    if (diff === 0)  return '⛳';
+    if (diff === 1)  return '🏌️';
+    if (diff === 2)  return '😬';
+    return '😅';
+  }
+
+  function getVsParText(strokes, par) {
+    const diff = strokes - par;
+    if (diff < 0) return `${diff}`;
+    if (diff === 0) return 'E';
+    return `+${diff}`;
+  }
+
+  function getDecisionNote() {
+    if (waterHazardHits > 0) {
+      return `You hit into the water ${waterHazardHits > 1 ? waterHazardHits + ' times' : 'once'} — try a safer line next time.`;
+    }
+    if (wentOverWater && waterHazardHits === 0) {
+      return 'You played it safe — good course management!';
+    }
+    if (strokeCount <= HOLE_PAR - 1) {
+      return 'Excellent ball striking — very clean round!';
+    }
+    if (strokeCount <= HOLE_PAR + 1) {
+      return 'Solid round. A little tighter line off the tee could save a shot.';
+    }
+    return 'Consider a more conservative club selection off the tee next time.';
+  }
+
+  function showSummary() {
+    const overlay = document.getElementById('summaryOverlay');
+    if (!overlay) return;
+
+    const scoreName = getScoreName(strokeCount, HOLE_PAR);
+    const icon      = getScoreIcon(strokeCount, HOLE_PAR);
+    const vsParText = getVsParText(strokeCount, HOLE_PAR);
+
+    const iconEl    = document.getElementById('sumIcon');
+    const titleEl   = document.getElementById('sumTitle');
+    const nameEl    = document.getElementById('sumScoreName');
+    const strokesEl = document.getElementById('sumStrokes');
+    const parEl     = document.getElementById('sumPar');
+    const vsParEl   = document.getElementById('sumVsPar');
+    const noteEl    = document.getElementById('sumNote');
+
+    if (iconEl)    iconEl.textContent    = icon;
+    if (titleEl)   titleEl.textContent   = 'Hole Complete!';
+    if (nameEl)    nameEl.textContent    = scoreName;
+    if (strokesEl) strokesEl.textContent = strokeCount;
+    if (parEl)     parEl.textContent     = HOLE_PAR;
+    if (vsParEl)   vsParEl.textContent   = vsParText;
+    if (noteEl)    noteEl.textContent    = getDecisionNote();
+
+    overlay.classList.remove('hidden');
+  }
+
+  // ─── Dispersion ───────────────────────────────────────────────────────────
+  function calcDispersion(handicap) {
+    const anchors = [
+      { hcp: -10, sigma: 1.2 },
+      { hcp:  10, sigma: 4.8 },
+      { hcp:  20, sigma: 9.1 },
+      { hcp:  30, sigma: 15.0 },
+    ];
+    let sigma;
+    if (handicap <= anchors[0].hcp) {
+      sigma = anchors[0].sigma;
+    } else if (handicap >= anchors[anchors.length - 1].hcp) {
+      sigma = anchors[anchors.length - 1].sigma;
+    } else {
+      for (let i = 0; i < anchors.length - 1; i++) {
+        if (handicap <= anchors[i + 1].hcp) {
+          const t = (handicap - anchors[i].hcp) / (anchors[i + 1].hcp - anchors[i].hcp);
+          sigma = anchors[i].sigma + t * (anchors[i + 1].sigma - anchors[i].sigma);
+          break;
+        }
+      }
+    }
+    const u1 = Math.random() || 1e-10;
+    const u2 = Math.random();
+    const gauss = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    return gauss * sigma;
+  }
+
+  // ─── Scene ───────────────────────────────────────────────────────────────
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87ceeb);
+  scene.fog = new THREE.Fog(0x87ceeb, 200, 520);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.domElement.style.cssText = 'position:absolute;top:0;left:0;z-index:0;';
+  document.body.appendChild(renderer.domElement);
+
+  // ─── Lighting ────────────────────────────────────────────────────────────
+  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+  const sun = new THREE.DirectionalLight(0xfffbe6, 0.95);
+  sun.position.set(80, 150, 40);
+  scene.add(sun);
+
+  // ─── Ground ──────────────────────────────────────────────────────────────
+  const SEGS = 32;
+  const groundGeo = new THREE.PlaneGeometry(340, 340, SEGS, SEGS);
+  const gp = groundGeo.attributes.position;
+  for (let i = 0; i < gp.count; i++) gp.setZ(i, (Math.random() - 0.5) * 2.2);
+  groundGeo.computeVertexNormals();
+  const ground = new THREE.Mesh(groundGeo, new THREE.MeshLambertMaterial({ color: 0x2d5a18, flatShading: true }));
+  ground.rotation.x = -Math.PI / 2;
+  scene.add(ground);
+
+  // ─── Fairway ─────────────────────────────────────────────────────────────
+  const HW = 10;
+  const sy = wz => -wz;
+  const fairwayShape = new THREE.Shape([
+    new THREE.Vector2(-HW,      sy(-45)),
+    new THREE.Vector2( HW,      sy(-45)),
+    new THREE.Vector2( HW,      sy( 22)),
+    new THREE.Vector2(38 + HW,  sy( 68)),
+    new THREE.Vector2(38 - HW,  sy( 68)),
+    new THREE.Vector2(-HW,      sy( 22)),
+  ]);
+  const fairway = new THREE.Mesh(new THREE.ShapeGeometry(fairwayShape), new THREE.MeshLambertMaterial({ color: 0x4caf50, flatShading: true }));
+  fairway.rotation.x = -Math.PI / 2;
+  fairway.position.y = 1.1;
+  scene.add(fairway);
+
+  // ─── Green ───────────────────────────────────────────────────────────────
+  const green = new THREE.Mesh(new THREE.CircleGeometry(13, 9), new THREE.MeshLambertMaterial({ color: 0x76ff03, flatShading: true }));
+  green.rotation.x = -Math.PI / 2;
+  green.position.set(PIN_X, 1.2, PIN_Z);
+  scene.add(green);
+
+  // ─── Trees ───────────────────────────────────────────────────────────────
+  function makeTree(x, y, z) {
+    const group = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.75, 3.5, 6), new THREE.MeshLambertMaterial({ color: 0x6b3a1f, flatShading: true }));
+    trunk.position.y = 1.75;
+    group.add(trunk);
+    const canopy = new THREE.Mesh(new THREE.ConeGeometry(4.5, 9, 5), new THREE.MeshLambertMaterial({ color: 0x1a5c2a, flatShading: true }));
+    canopy.position.y = 3.5 + 4.5;
+    group.add(canopy);
+    group.position.set(x, y, z);
+    scene.add(group);
+  }
+  [-38, -26, -14, -2, 10, 20].forEach(z => { makeTree(-16, 1.1, z); makeTree(16, 1.1, z); });
+
+  const dx = 38, dz = 46;
+  const dlen = Math.sqrt(dx * dx + dz * dz);
+  const px = -dz / dlen, pz = dx / dlen;
+  const OFFSET = 15;
+  [0.15, 0.32, 0.52, 0.70, 0.87].forEach(t => {
+    const bx = -10 + dx * t, bz = 22 + dz * t;
+    makeTree(bx + px * OFFSET, 1.1, bz + pz * OFFSET);
+    makeTree(bx - px * OFFSET, 1.1, bz - pz * OFFSET);
+  });
+
+  // ─── Water hazard ─────────────────────────────────────────────────────────
+  const waterGeo = new THREE.CircleGeometry(1, 8);
+  waterGeo.scale(11, 6, 1);
+  const water = new THREE.Mesh(waterGeo, new THREE.MeshLambertMaterial({ color: 0x1e88e5, flatShading: true }));
+  water.rotation.x = -Math.PI / 2;
+  water.rotation.y = Math.atan2(dx, dz);
+  water.position.set(34, 1.15, 33);
+  scene.add(water);
+
+  // Water hazard bounds (approximate ellipse center + radii in world units)
+  const WATER_CENTER = { x: 34, z: 33 };
+  const WATER_RX = 11, WATER_RZ = 6; // semi-axes before rotation
+  const WATER_ROT = Math.atan2(dx, dz); // rotation angle
+
+  // ─── Sand bunker ──────────────────────────────────────────────────────────
+  const bunkerGeo = new THREE.CircleGeometry(1, 7);
+  bunkerGeo.scale(9, 6, 1);
+  const bunker = new THREE.Mesh(bunkerGeo, new THREE.MeshLambertMaterial({ color: 0xe8d5a3, flatShading: true }));
+  bunker.rotation.x = -Math.PI / 2;
+  bunker.position.set(20, 1.18, 74);
+  scene.add(bunker);
+
+  // Bunker bounds
+  const BUNKER_CENTER = { x: 20, z: 74 };
+  const BUNKER_RX = 9, BUNKER_RZ = 6;
+
+  // ─── Ball & tee ───────────────────────────────────────────────────────────
+  const TEE_X = 0, TEE_Z = -42;
+  const GROUND_Y = 1.1;
+
+  const teePeg = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 1.2, 6), new THREE.MeshLambertMaterial({ color: 0xffdd00, flatShading: true }));
+  teePeg.position.set(TEE_X, GROUND_Y + 0.6, TEE_Z);
+  scene.add(teePeg);
+
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.55, 7, 6), new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true }));
+  const ballPos = new THREE.Vector3(TEE_X, GROUND_Y + 1.2 + 0.55, TEE_Z);
+  ball.position.copy(ballPos);
+  scene.add(ball);
+
+  // Ball overhead highlight ring (pulsing ring visible from above)
+  const ballRing = new THREE.Mesh(
+    new THREE.RingGeometry(1.2, 2.2, 12),
+    new THREE.MeshBasicMaterial({ color: 0xffff00, side: THREE.DoubleSide, transparent: true, opacity: 0.85 })
+  );
+  ballRing.rotation.x = -Math.PI / 2;
+  ballRing.position.copy(ballPos);
+  ballRing.position.y = GROUND_Y + 0.06;
+  scene.add(ballRing);
+
+  // ─── Flag / pin ───────────────────────────────────────────────────────────
+  const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 8, 5), new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true }));
+  pin.position.set(PIN_X, 1.2 + 4, PIN_Z);
+  scene.add(pin);
+  const flagShape = new THREE.Shape();
+  flagShape.moveTo(0, 0); flagShape.lineTo(3.5, -1.5); flagShape.lineTo(0, -3); flagShape.closePath();
+  const flagMesh = new THREE.Mesh(new THREE.ShapeGeometry(flagShape), new THREE.MeshLambertMaterial({ color: 0xe53935, flatShading: true, side: THREE.DoubleSide }));
+  flagMesh.position.set(PIN_X, 1.2 + 8, PIN_Z);
+  scene.add(flagMesh);
+
+  // ─── Aim line & marker ───────────────────────────────────────────────────
+  const aimLineMat = new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 2 });
+  const aimLineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+  const aimLine = new THREE.Line(aimLineGeo, aimLineMat);
+  aimLine.visible = false;
+  scene.add(aimLine);
+
+  const aimMarker = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.4, 8), new THREE.MeshBasicMaterial({ color: 0xffff00, side: THREE.DoubleSide }));
+  aimMarker.rotation.x = -Math.PI / 2;
+  aimMarker.position.y = GROUND_Y + 0.05;
+  aimMarker.visible = false;
+  scene.add(aimMarker);
+
+  // ─── Cameras ─────────────────────────────────────────────────────────────
+  const aspect = window.innerWidth / window.innerHeight;
+
+  const behindCam = new THREE.PerspectiveCamera(58, aspect, 0.5, 800);
+
+  const overheadCam = new THREE.PerspectiveCamera(60, aspect, 1, 800);
+  overheadCam.up.set(0, 0, 1);
+  overheadCam.position.set(18.5, 160, 18.5);
+  overheadCam.lookAt(18.5, 0, 18.5);
+
+  let activeCamera = behindCam;
+
+  // ─── Club panel ──────────────────────────────────────────────────────────
+  const clubPanel  = document.getElementById('clubPanel');
+  const clubListEl = document.getElementById('clubListPanel');
+
+  function buildClubPanel() {
+    clubListEl.innerHTML = '';
+    playerClubs.forEach((club, i) => {
+      const btn = document.createElement('button');
+      const isRestricted = currentLie === 'rough' && club.distance > 170;
+      btn.className = 'club-btn' + (i === selectedClubIdx ? ' selected' : '') + (isRestricted ? ' restricted' : '');
+      btn.innerHTML =
+        `<span class="club-btn-name">${club.name}</span>` +
+        `<span class="club-btn-dist">${club.distance} yds${isRestricted ? ' ⚠' : ''}</span>`;
+      btn.addEventListener('click', () => {
+        if (isRestricted) return; // rough restriction
+        selectedClubIdx = i;
+        document.querySelectorAll('.club-btn').forEach((b, j) => b.classList.toggle('selected', j === i));
+      });
+      clubListEl.appendChild(btn);
+    });
+  }
+
+  function showClubPanel(visible) {
+    if (visible) { clubPanel.classList.remove('hidden'); document.body.classList.add('show-clubs'); }
+    else         { clubPanel.classList.add('hidden');    document.body.classList.remove('show-clubs'); }
+  }
+
+  buildClubPanel();
+  showClubPanel(true);
+
+  // ─── Apply profile ────────────────────────────────────────────────────────
+  window.applyProfile = function() {
+    try {
+      const raw = localStorage.getItem('golf_player_profile');
+      if (!raw) return;
+      const p = JSON.parse(raw);
+      if (typeof p.handicap === 'number') playerHandicap = p.handicap;
+      if (Array.isArray(p.clubs) && p.clubs.length > 0) {
+        const usable = p.clubs.filter(c => c.name !== 'Putter' && c.distance > 0);
+        if (usable.length > 0) playerClubs = usable;
+      }
+    } catch(e) { /* use existing values */ }
+    if (selectedClubIdx >= playerClubs.length) selectedClubIdx = 0;
+    buildClubPanel();
+  };
+
+  window.applyProfile();
+
+  // ─── Edit Profile button ──────────────────────────────────────────────────
+  const editProfileBtn = document.getElementById('editProfileBtn');
+  editProfileBtn.addEventListener('click', () => {
+    window.openProfileOverlay();
+  });
+
+  // ─── Lie detection ────────────────────────────────────────────────────────
+  // Returns 'fairway' | 'rough' | 'water' | 'bunker' | 'green'
+  function detectLie(x, z) {
+    // Check water (rotated ellipse)
+    {
+      const cx = x - WATER_CENTER.x, cz = z - WATER_CENTER.z;
+      const cosR = Math.cos(-WATER_ROT), sinR = Math.sin(-WATER_ROT);
+      const lx = cx * cosR - cz * sinR;
+      const lz = cx * sinR + cz * cosR;
+      if ((lx * lx) / (WATER_RX * WATER_RX) + (lz * lz) / (WATER_RZ * WATER_RZ) <= 1) {
+        return 'water';
+      }
+    }
+
+    // Check bunker (axis-aligned ellipse)
+    {
+      const lx = x - BUNKER_CENTER.x, lz = z - BUNKER_CENTER.z;
+      if ((lx * lx) / (BUNKER_RX * BUNKER_RX) + (lz * lz) / (BUNKER_RZ * BUNKER_RZ) <= 1) {
+        return 'bunker';
+      }
+    }
+
+    // Check green (circle around pin)
+    {
+      const dx2 = x - PIN_X, dz2 = z - PIN_Z;
+      if (Math.sqrt(dx2 * dx2 + dz2 * dz2) <= 13) {
+        return 'green';
+      }
+    }
+
+    // Check fairway (point-in-polygon for L-shape)
+    if (isOnFairway(x, z)) return 'fairway';
+
+    return 'rough';
+  }
+
+  // Simple point-in-polygon for the L-shaped fairway
+  function isOnFairway(x, z) {
+    // Segment 1: straight section z: -45 to 22, x: -10 to 10
+    if (x >= -HW && x <= HW && z >= -45 && z <= 22) return true;
+
+    // Segment 2: dogleg arm from (−10,22)→(28,68)→(48,68)→(10,22)
+    // Approximate as bounding parallelogram using cross products
+    // For simplicity, use a bounding box around the dogleg arm
+    // The dogleg goes from roughly x=-10,z=22 turning right to x=48,z=68
+    // We'll check if the point is within HW of the centerline of the arm
+    const armCX = -10 + dx * 0.5, armCZ = 22 + dz * 0.5;
+    const armLen = dlen;
+    const ndx = dx / armLen, ndz = dz / armLen;
+    const relX = x - (-10), relZ = z - 22;
+    const along = relX * ndx + relZ * ndz;
+    const perp  = Math.abs(relX * (-ndz) + relZ * ndx);
+    if (along >= 0 && along <= armLen && perp <= HW) return true;
+
+    return false;
+  }
+
+  // ─── Overhead distance-to-pin update ─────────────────────────────────────
+  function updateOverheadDist() {
+    const el = document.getElementById('overheadDist');
+    if (!el) return;
+    const dx2 = ballPos.x - PIN_X, dz2 = ballPos.z - PIN_Z;
+    const worldDist = Math.sqrt(dx2 * dx2 + dz2 * dz2);
+    const yards = Math.round(worldDist / YARDS_PER_UNIT);
+    el.textContent = yards;
+  }
+
+  // ─── Aim state ───────────────────────────────────────────────────────────
+  let aimPoint = null;
+  const aimPlane = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }));
+  aimPlane.rotation.x = -Math.PI / 2;
+  aimPlane.position.y = GROUND_Y;
+  scene.add(aimPlane);
+
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+
+  function updateAimLine() {
+    if (!aimPoint) return;
+    const pts = aimLineGeo.attributes.position;
+    pts.setXYZ(0, ballPos.x, GROUND_Y + 0.1, ballPos.z);
+    pts.setXYZ(1, aimPoint.x, GROUND_Y + 0.1, aimPoint.z);
+    pts.needsUpdate = true;
+    aimLine.visible = true;
+    aimMarker.position.set(aimPoint.x, GROUND_Y + 0.05, aimPoint.z);
+    aimMarker.visible = true;
+  }
+
+  // Auto-aim straight down the fairway for the opening tee shot
+  aimPoint = new THREE.Vector3(0, GROUND_Y, 22);
+  updateAimLine();
+  (function() {
+    const aimDirX = aimPoint.x - ballPos.x;
+    const aimDirZ = aimPoint.z - ballPos.z;
+    const angle = Math.atan2(aimDirX, aimDirZ);
+    behindCam.position.set(ballPos.x - Math.sin(angle) * 20, 11, ballPos.z - Math.cos(angle) * 20);
+    behindCam.lookAt(ballPos.x + Math.sin(angle) * 10, 1, ballPos.z + Math.cos(angle) * 10);
+  })();
+
+  renderer.domElement.addEventListener('click', e => {
+    if (activeCamera !== behindCam) return;
+    if (animState !== 'idle' && animState !== 'done') return;
+    if (holeComplete) return;
+    if (e.clientX < 130) return;
+
+    mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, behindCam);
+    const hits = raycaster.intersectObject(aimPlane);
+    if (!hits.length) return;
+
+    const pt = hits[0].point;
+    if (pt.z <= ballPos.z && pt.x === ballPos.x) return;
+
+    aimPoint = new THREE.Vector3(pt.x, GROUND_Y, pt.z);
+    updateAimLine();
+
+    const dirX = aimPoint.x - ballPos.x;
+    const dirZ = aimPoint.z - ballPos.z;
+    const angle = Math.atan2(dirX, dirZ);
+    behindCam.position.set(ballPos.x - Math.sin(angle) * 20, 11, ballPos.z - Math.cos(angle) * 20);
+    behindCam.lookAt(ballPos.x + Math.sin(angle) * 10, 1, ballPos.z + Math.cos(angle) * 10);
+  });
+
+  // ─── Animation state machine ──────────────────────────────────────────────
+  let animState = 'idle';
+  let animT = 0, animDur = 0;
+  let flightStart = new THREE.Vector3(), flightEnd = new THREE.Vector3();
+  const APEX_FRAC = 0.4;
+  let apexHeight = 0, bounceH1 = 0, bounceH2 = 0;
+  let rollStart = new THREE.Vector3(), rollEnd = new THREE.Vector3();
+
+  function startFlight() {
+    if (!aimPoint) return;
+    if (holeComplete) return;
+
+    // Save position before shot for water-hazard respawn
+    lastSafePosition = ballPos.clone();
+
+    // Detect if aim line crosses over water (simple check)
+    const aimMidX = (ballPos.x + aimPoint.x) / 2;
+    const aimMidZ = (ballPos.z + aimPoint.z) / 2;
+    const cx = aimMidX - WATER_CENTER.x, cz = aimMidZ - WATER_CENTER.z;
+    const cosR = Math.cos(-WATER_ROT), sinR = Math.sin(-WATER_ROT);
+    const lx = cx * cosR - cz * sinR;
+    const lz = cx * sinR + cz * cosR;
+    if ((lx * lx) / (WATER_RX * WATER_RX) + (lz * lz) / (WATER_RZ * WATER_RZ) <= 1.5) {
+      wentOverWater = true;
+    }
+
+    animState = 'flight';
+    animT = 0;
+    flightStart.copy(ballPos);
+
+    const club = playerClubs[selectedClubIdx];
+    const variance = 1 + (Math.random() * 0.10 - 0.05);
+    let distMultiplier = variance;
+
+    // Apply bunker penalty if active
+    if (bunkerPenaltyActive) {
+      distMultiplier *= 0.65; // reduced distance from bunker
+      bunkerPenaltyActive = false;
+    }
+
+    const worldDist = club.distance * distMultiplier * YARDS_PER_UNIT;
+
+    const aimDirX = aimPoint.x - ballPos.x;
+    const aimDirZ = aimPoint.z - ballPos.z;
+    const aimLen  = Math.sqrt(aimDirX * aimDirX + aimDirZ * aimDirZ) || 1;
+    const normX = aimDirX / aimLen, normZ = aimDirZ / aimLen;
+
+    const lateralWorld = calcDispersion(playerHandicap) * YARDS_PER_UNIT;
+    const perpX = -normZ, perpZ = normX;
+
+    flightEnd.set(
+      ballPos.x + normX * worldDist + perpX * lateralWorld,
+      GROUND_Y + 0.55,
+      ballPos.z + normZ * worldDist + perpZ * lateralWorld
+    );
+
+    const dist = flightStart.distanceTo(flightEnd);
+    apexHeight = Math.min(30, dist * 0.45);
+    animDur    = Math.max(dist / 55, 0.05); // guard against zero-dist divide
+    bounceH1   = apexHeight * 0.18;
+    bounceH2   = apexHeight * 0.07;
+
+    document.getElementById('hitBtn').disabled = true;
+    document.getElementById('hint').textContent = '';
+    setLieStatus('', false);
+  }
+
+  function easeInOut(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
+
+  // Called at end of roll — handles lie detection, penalties, hole-complete
+  function onBallAtRest() {
+    ballPos.copy(rollEnd);
+    animState = 'done';
+
+    // ── Lie detection ──────────────────────────────────────────────────────
+    const lie = detectLie(ballPos.x, ballPos.z);
+    currentLie = lie;
+
+    if (lie === 'water') {
+      waterHazardHits++;
+      strokeCount++; // penalty stroke
+      updateStrokeHud();
+      // Respawn at last safe position
+      ballPos.copy(lastSafePosition);
+      ball.position.copy(ballPos);
+      ballRing.position.set(ballPos.x, GROUND_Y + 0.06, ballPos.z);
+      setLieStatus('Water hazard — 1 stroke penalty. Ball repositioned.', true);
+      currentLie = detectLie(ballPos.x, ballPos.z);
+    } else if (lie === 'bunker') {
+      bunkerPenaltyActive = true;
+      setLieStatus('Ball in bunker — reduced distance on next shot', true);
+    } else if (lie === 'rough') {
+      setLieStatus('Ball is in the rough — limited club selection', true);
+    } else {
+      setLieStatus('', false);
+    }
+
+    // Rebuild club panel to reflect new restrictions
+    buildClubPanel();
+
+    // ── Check hole complete ────────────────────────────────────────────────
+    const dxPin = ballPos.x - PIN_X, dzPin = ballPos.z - PIN_Z;
+    const distToPin = Math.sqrt(dxPin * dxPin + dzPin * dzPin);
+
+    if (distToPin <= HOLE_IN_RADIUS_UNITS && !holeComplete) {
+      holeComplete = true;
+      setLieStatus('', false);
+      // Small delay so player sees ball land, then show summary
+      setTimeout(() => {
+        showSummary();
+      }, 800);
+      document.getElementById('hitBtn').disabled = true;
+      document.getElementById('hint').textContent = 'Hole complete!';
+      return;
+    }
+
+    // ── Auto-aim toward pin ────────────────────────────────────────────────
+    aimPoint = new THREE.Vector3(PIN_X, GROUND_Y, PIN_Z);
+    updateAimLine();
+
+    const toFlagX = PIN_X - ballPos.x;
+    const toFlagZ = PIN_Z - ballPos.z;
+    const flagAngle = Math.atan2(toFlagX, toFlagZ);
+    behindCam.position.set(ballPos.x - Math.sin(flagAngle) * 20, 11, ballPos.z - Math.cos(flagAngle) * 20);
+    behindCam.lookAt(ballPos.x + Math.sin(flagAngle) * 10, 1, ballPos.z + Math.cos(flagAngle) * 10);
+    activeCamera = behindCam;
+    showClubPanel(true);
+    editProfileBtn.style.display = 'none';
+
+    document.getElementById('hitBtn').disabled = false;
+    document.getElementById('hint').textContent = 'Tap the fairway to aim, then press Hit';
+
+    // Update overhead distance
+    updateOverheadDist();
+  }
+
+  function tickAnimation(dt) {
+    if (animState === 'idle' || animState === 'done') return;
+    animT += dt / animDur;
+
+    if (animState === 'flight') {
+      const t = Math.min(animT, 1);
+      const h = t <= APEX_FRAC
+        ? apexHeight * (t / APEX_FRAC)
+        : apexHeight * (1 - (t - APEX_FRAC) / (1 - APEX_FRAC));
+      ball.position.x = flightStart.x + (flightEnd.x - flightStart.x) * t;
+      ball.position.z = flightStart.z + (flightEnd.z - flightStart.z) * t;
+      ball.position.y = flightEnd.y + h;
+      if (animT >= 1) { ball.position.copy(flightEnd); ballPos.copy(flightEnd); animState = 'bounce1'; animT = 0; animDur = 0.22; }
+    }
+    else if (animState === 'bounce1') {
+      ball.position.y = flightEnd.y + bounceH1 * Math.sin(Math.PI * Math.min(animT, 1));
+      if (animT >= 1) { ball.position.copy(flightEnd); animState = 'bounce2'; animT = 0; animDur = 0.14; }
+    }
+    else if (animState === 'bounce2') {
+      ball.position.y = flightEnd.y + bounceH2 * Math.sin(Math.PI * Math.min(animT, 1));
+      if (animT >= 1) {
+        ball.position.copy(flightEnd);
+        const rollDist = flightStart.distanceTo(flightEnd) * 0.08;
+        const dirX = flightEnd.x - flightStart.x, dirZ = flightEnd.z - flightStart.z;
+        const dirLen = Math.sqrt(dirX*dirX + dirZ*dirZ) || 1;
+        rollStart.copy(flightEnd);
+        rollEnd.set(flightEnd.x + (dirX/dirLen) * rollDist, flightEnd.y, flightEnd.z + (dirZ/dirLen) * rollDist);
+        animState = 'roll'; animT = 0; animDur = 0.35;
+      }
+    }
+    else if (animState === 'roll') {
+      const t = easeInOut(Math.min(animT, 1));
+      ball.position.x = rollStart.x + (rollEnd.x - rollStart.x) * t;
+      ball.position.z = rollStart.z + (rollEnd.z - rollStart.z) * t;
+      ball.position.y = rollEnd.y;
+      if (animT >= 1) {
+        onBallAtRest();
+      }
+    }
+
+    // Keep ball ring under ball during flight
+    ballRing.position.set(ball.position.x, GROUND_Y + 0.06, ball.position.z);
+  }
+
+  // ─── Hit button ───────────────────────────────────────────────────────────
+  document.getElementById('hitBtn').addEventListener('click', () => {
+    if (animState !== 'idle' && animState !== 'done') return;
+    if (holeComplete) return;
+    if (!aimPoint) aimPoint = new THREE.Vector3(ballPos.x + 4, GROUND_Y, ballPos.z + 60);
+
+    strokeCount++;
+    updateStrokeHud();
+
+    animState = 'idle';
+    startFlight();
+  });
+
+  // ─── Switch view button ───────────────────────────────────────────────────
+  document.getElementById('switchBtn').addEventListener('click', () => {
+    activeCamera = (activeCamera === behindCam) ? overheadCam : behindCam;
+    const isOverhead = activeCamera === overheadCam;
+    showClubPanel(!isOverhead);
+    editProfileBtn.style.display = isOverhead ? 'block' : 'none';
+
+    const overheadInfo = document.getElementById('overheadInfo');
+    const lieStatusEl  = document.getElementById('lieStatus');
+    if (overheadInfo) overheadInfo.style.display = isOverhead ? 'block' : 'none';
+    // Hide lie banner in overhead (it overlaps with overhead info)
+    if (lieStatusEl && isOverhead) lieStatusEl.style.display = 'none';
+    else if (lieStatusEl && !isOverhead && currentLie !== 'fairway' && currentLie !== 'green') {
+      lieStatusEl.style.display = 'block';
+    }
+
+    if (isOverhead) updateOverheadDist();
+  });
+
+  // ─── Summary "Play Next Hole" button ──────────────────────────────────────
+  const sumNextBtn = document.getElementById('sumNextBtn');
+  if (sumNextBtn) {
+    sumNextBtn.addEventListener('click', () => {
+      window.location.reload();
+    });
+  }
+
+  // ─── Resize ───────────────────────────────────────────────────────────────
+  window.addEventListener('resize', () => {
+    const w = window.innerWidth, h = window.innerHeight;
+    [behindCam, overheadCam].forEach(cam => { cam.aspect = w / h; cam.updateProjectionMatrix(); });
+    renderer.setSize(w, h);
+  });
+
+  // ─── Render loop ─────────────────────────────────────────────────────────
+  let lastTime = null;
+  let ringPulseT = 0;
+  (function animate(ts) {
+    requestAnimationFrame(animate);
+    const dt = lastTime === null ? 0 : Math.min((ts - lastTime) / 1000, 0.1);
+    lastTime = ts;
+
+    // Pulse the ball ring when in overhead view
+    if (activeCamera === overheadCam) {
+      ringPulseT += dt * 2.5;
+      const scale = 1 + 0.35 * Math.sin(ringPulseT);
+      ballRing.scale.set(scale, scale, 1);
+      ballRing.visible = true;
+    } else {
+      ballRing.visible = false;
+      ballRing.scale.set(1, 1, 1);
+    }
+
+    tickAnimation(dt);
+    renderer.render(scene, activeCamera);
+  })();
+
+  // ─── Initial state ────────────────────────────────────────────────────────
+  updateStrokeHud();
+  updateOverheadDist();
+  </script>
+</body>
+</html>

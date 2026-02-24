@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Golf Hole – POC</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #000; }
+
+    #view-label {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255, 255, 255, 0.75);
+      font: 600 11px/1 'Helvetica Neue', Arial, sans-serif;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #ui {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      z-index: 10;
+    }
+
+    #ui button {
+      padding: 10px 26px;
+      font: 500 12px/1 'Helvetica Neue', Arial, sans-serif;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.38);
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      border-radius: 5px;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      transition: background 0.15s, opacity 0.25s;
+    }
+    #ui button:hover:not(:disabled) { background: rgba(0, 0, 0, 0.62); }
+    #ui button:disabled { cursor: default; }
+
+    #hitBtn {
+      background: rgba(20, 90, 20, 0.55);
+      border-color: rgba(80, 210, 80, 0.45);
+    }
+    #hitBtn:hover:not(:disabled) { background: rgba(20, 110, 20, 0.8); }
+  </style>
+</head>
+<body>
+  <div id="view-label">Overhead</div>
+  <div id="ui">
+    <button id="switchBtn">Switch View</button>
+    <button id="hitBtn">Hit</button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+  (function () {
+
+    // ── Renderer ──────────────────────────────────────────────────────────────
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    // ── Scene ─────────────────────────────────────────────────────────────────
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x79b8d4);
+    scene.fog = new THREE.Fog(0x79b8d4, 200, 420);
+
+    // ── Cameras ───────────────────────────────────────────────────────────────
+    //  Hole runs along Z: tee at +Z, green at −Z
+    const aspect = window.innerWidth / window.innerHeight;
+
+    const camOver   = new THREE.PerspectiveCamera(52, aspect, 0.1, 800);
+    const camBehind = new THREE.PerspectiveCamera(62, aspect, 0.1, 800);
+
+    // Stored home positions so we can restore after animation
+    const OVER_HOME_POS  = new THREE.Vector3(0, 195, 95);
+    const OVER_HOME_LOOK = new THREE.Vector3(0, 0, -40);
+    const BEH_HOME_POS   = new THREE.Vector3(0, 8, 132);
+    const BEH_HOME_LOOK  = new THREE.Vector3(0, 2, -120);
+
+    function resetCamOver()   { camOver.position.copy(OVER_HOME_POS);  camOver.lookAt(OVER_HOME_LOOK); }
+    function resetCamBehind() { camBehind.position.copy(BEH_HOME_POS); camBehind.lookAt(BEH_HOME_LOOK); }
+    resetCamOver();
+    resetCamBehind();
+
+    let activeCam = camOver;
+
+    // ── Lights ────────────────────────────────────────────────────────────────
+    scene.add(new THREE.AmbientLight(0xc8e0ff, 0.42));
+
+    const sun = new THREE.DirectionalLight(0xfff3dc, 1.15);
+    sun.position.set(90, 155, 65);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.bias = -0.001;
+    sun.shadow.camera.left   = -200;
+    sun.shadow.camera.right  =  200;
+    sun.shadow.camera.top    =  200;
+    sun.shadow.camera.bottom = -200;
+    scene.add(sun);
+
+    // ── Flat-shaded Lambert material ─────────────────────────────────────────
+    const lm = (hex) => new THREE.MeshLambertMaterial({ color: hex, flatShading: true });
+
+    // ── Ground – rough ────────────────────────────────────────────────────────
+    const rough = new THREE.Mesh(new THREE.PlaneGeometry(280, 400), lm(0x2b5825));
+    rough.rotation.x = -Math.PI / 2;
+    rough.receiveShadow = true;
+    scene.add(rough);
+
+    // ── Fairway strip ─────────────────────────────────────────────────────────
+    const fairway = new THREE.Mesh(new THREE.PlaneGeometry(52, 270), lm(0x3e8c36));
+    fairway.rotation.x = -Math.PI / 2;
+    fairway.position.set(0, 0.05, -3);
+    fairway.receiveShadow = true;
+    scene.add(fairway);
+
+    // ── Putting green ─────────────────────────────────────────────────────────
+    const GREEN_Z = -118;
+    const green = new THREE.Mesh(new THREE.CylinderGeometry(27, 27, 0.45, 13), lm(0x54cc5a));
+    green.position.set(0, 0.22, GREEN_Z);
+    green.receiveShadow = true;
+    scene.add(green);
+
+    // ── Bunker ────────────────────────────────────────────────────────────────
+    const bunker = new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 0.35, 10), lm(0xd5c070));
+    bunker.scale.set(1.6, 1, 1.15);
+    bunker.position.set(42, 0.17, GREEN_Z + 6);
+    bunker.receiveShadow = true;
+    scene.add(bunker);
+
+    // ── Trees ─────────────────────────────────────────────────────────────────
+    const trunkMat   = lm(0x6b4726);
+    const foliageMat = lm(0x1a3d1c);
+
+    function addTree(x, z) {
+      const g = new THREE.Group();
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.65, 9, 5), trunkMat);
+      trunk.position.y = 4.5;
+      trunk.castShadow = true;
+      g.add(trunk);
+      const crown = new THREE.Mesh(new THREE.ConeGeometry(7.2, 16, 6), foliageMat);
+      crown.position.y = 17;
+      crown.castShadow = true;
+      g.add(crown);
+      g.position.set(x, 0, z);
+      scene.add(g);
+    }
+
+    [-90, -65, -40, -15, 12, 40, 67, 93].forEach(z => { addTree(-41, z); addTree(41, z); });
+
+    // ── Flag pin ──────────────────────────────────────────────────────────────
+    const PIN_X = 5;
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.22, 0.22, 20, 5),
+      new THREE.MeshLambertMaterial({ color: 0xe0e0e0 })
+    );
+    pole.position.set(PIN_X, 10, GREEN_Z);
+    pole.castShadow = true;
+    scene.add(pole);
+
+    const flagGeo = new THREE.BufferGeometry();
+    flagGeo.setAttribute('position', new THREE.BufferAttribute(
+      new Float32Array([0, 0, 0,  9, -3, 0,  0, -6, 0]), 3
+    ));
+    flagGeo.computeVertexNormals();
+    const flag = new THREE.Mesh(flagGeo, new THREE.MeshLambertMaterial({
+      color: 0xee1e1e, side: THREE.DoubleSide, flatShading: true,
+    }));
+    flag.position.set(PIN_X, 20, GREEN_Z);
+    scene.add(flag);
+
+    // ── Ball & tee peg ────────────────────────────────────────────────────────
+    const TEE_Z    = 108;
+    const BALL_R   = 1.35;
+    const GROUND_Y = BALL_R;  // ball centre sitting on ground
+    const TEE_Y    = 2.5;     // ball centre elevated on tee peg
+
+    const teePeg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.2, 0.65, 2.2, 6), lm(0xf2e050)
+    );
+    teePeg.position.set(0, 1.1, TEE_Z);
+    scene.add(teePeg);
+
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 8, 6), lm(0xffffff));
+    ball.position.set(0, TEE_Y, TEE_Z);
+    ball.castShadow = true;
+    scene.add(ball);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Ball flight animation
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Key world positions along the shot path
+    const P_TEE  = new THREE.Vector3(0, TEE_Y,    TEE_Z);  // launch point
+    const P_LAND = new THREE.Vector3(0, GROUND_Y, -72);    // first touchdown
+    const P_B1   = new THREE.Vector3(0, GROUND_Y, -86);    // after bounce 1
+    const P_B2   = new THREE.Vector3(0, GROUND_Y, -96);    // after bounce 2
+    const P_REST = new THREE.Vector3(0, GROUND_Y, -106);   // final rest (on green)
+
+    // Arc parameters
+    const PEAK_H  = 46;    // apex height above ground
+    const PEAK_T  = 0.47;  // apex at 47% through the flight phase
+    const B1_H    = 10;    // bounce 1 peak height
+    const B2_H    = 3.5;   // bounce 2 peak height
+
+    // Phase end points as fraction of total normalised time [0, 1]
+    //   flight  : 0.00 → 0.54  (2.7 s at 5 s total)
+    //   bounce 1: 0.54 → 0.69  (0.75 s)
+    //   bounce 2: 0.69 → 0.80  (0.55 s)
+    //   roll    : 0.80 → 1.00  (1.0 s)
+    const PH_LAND = 0.54;
+    const PH_B1   = 0.69;
+    const PH_B2   = 0.80;
+
+    const ANIM_DUR = 5.0; // total seconds
+
+    // ── Arc helper ────────────────────────────────────────────────────────────
+    // Smooth, sinusoidal arc with a configurable peak position.
+    // s   : local phase progress [0, 1]
+    // y0  : start y
+    // yPk : peak y
+    // y1  : end y
+    // pt  : normalised position of peak within [0, 1]
+    function arcY(s, y0, yPk, y1, pt) {
+      if (s <= pt) {
+        const r = s / pt;
+        return y0 + (yPk - y0) * Math.sin(r * Math.PI * 0.5);
+      } else {
+        const r = (s - pt) / (1 - pt);
+        return y1 + (yPk - y1) * Math.cos(r * Math.PI * 0.5);
+      }
+    }
+
+    // ── Compute ball world position from normalised time t ∈ [0, 1] ──────────
+    function ballPosAt(t) {
+      if (t <= PH_LAND) {
+        // ── Main flight arc ──
+        const s = t / PH_LAND;
+        return new THREE.Vector3(
+          0,
+          arcY(s, TEE_Y, GROUND_Y + PEAK_H, GROUND_Y, PEAK_T),
+          THREE.MathUtils.lerp(P_TEE.z, P_LAND.z, s)
+        );
+
+      } else if (t <= PH_B1) {
+        // ── First bounce ──
+        const s = (t - PH_LAND) / (PH_B1 - PH_LAND);
+        return new THREE.Vector3(
+          0,
+          GROUND_Y + B1_H * Math.sin(Math.PI * s),
+          THREE.MathUtils.lerp(P_LAND.z, P_B1.z, s)
+        );
+
+      } else if (t <= PH_B2) {
+        // ── Second bounce ──
+        const s = (t - PH_B1) / (PH_B2 - PH_B1);
+        return new THREE.Vector3(
+          0,
+          GROUND_Y + B2_H * Math.sin(Math.PI * s),
+          THREE.MathUtils.lerp(P_B1.z, P_B2.z, s)
+        );
+
+      } else {
+        // ── Roll to rest — ease-out deceleration ──
+        const s    = (t - PH_B2) / (1 - PH_B2);
+        const ease = 1 - (1 - s) * (1 - s);
+        return new THREE.Vector3(
+          0,
+          GROUND_Y,
+          THREE.MathUtils.lerp(P_B2.z, P_REST.z, ease)
+        );
+      }
+    }
+
+    // ── Camera update during animation ────────────────────────────────────────
+    // Both cameras track the ball regardless of which is active,
+    // so switching views mid-flight always feels right.
+    function updateCamsForBall(bPos) {
+      // Overhead: slide forward, keeping ball 30 units "behind" the focus point.
+      // The lerp factor gives a gentle lag that reads as a smooth pan.
+      const tgtZ = bPos.z - 30;
+      camOver.position.z += (tgtZ - camOver.position.z) * 0.03;
+      camOver.lookAt(bPos.x, 0, bPos.z);
+
+      // Behind-ball: physically orbit behind and above the ball.
+      // When ball is airborne the camera rises with it, maintaining
+      // the low ground-level feel on the ground sections.
+      const behZ = bPos.z + 22;
+      const behY = Math.max(bPos.y + 8, 8);
+      camBehind.position.set(bPos.x, behY, behZ);
+      // Look a fixed distance ahead of the ball toward the green.
+      camBehind.lookAt(bPos.x, Math.max(bPos.y - 1, 0), bPos.z - 35);
+    }
+
+    // ── Animation state ───────────────────────────────────────────────────────
+    let animating     = false;
+    let animStartTime = 0;
+
+    // Camera restoration state
+    let restoring          = false;
+    let restoreStartTime   = 0;
+    const RESTORE_DUR      = 1.8; // seconds
+    let restoreCamOverZ    = OVER_HOME_POS.z;
+    let restoreLookZ       = OVER_HOME_LOOK.z;
+
+    function smoothstep(t) { return t * t * (3 - 2 * t); }
+
+    const hitBtn    = document.getElementById('hitBtn');
+    const switchBtn = document.getElementById('switchBtn');
+    const label     = document.getElementById('view-label');
+
+    function lockHit()   { hitBtn.disabled = true;  hitBtn.style.opacity = '0.42'; }
+    function unlockHit() { hitBtn.disabled = false; hitBtn.style.opacity = ''; }
+
+    function hitBall() {
+      if (animating || restoring) return;
+      animating     = true;
+      animStartTime = performance.now();
+      lockHit();
+    }
+
+    function onAnimDone() {
+      // Mark animation as over immediately so the render loop stops updating.
+      animating = false;
+
+      // After a short pause let the player admire the shot, then:
+      // 1) Start smoothly restoring the overhead camera.
+      setTimeout(() => {
+        restoreCamOverZ  = camOver.position.z;
+        restoreLookZ     = ball.position.z; // where we're currently looking
+        restoring        = true;
+        restoreStartTime = performance.now();
+      }, 1000);
+
+      // 2) Teleport ball back to tee and re-enable Hit.
+      setTimeout(() => {
+        ball.position.set(0, TEE_Y, TEE_Z);
+        resetCamBehind();
+        unlockHit();
+      }, 3200);
+    }
+
+    hitBtn.addEventListener('click', hitBall);
+
+    // ── View toggle ───────────────────────────────────────────────────────────
+    switchBtn.addEventListener('click', () => {
+      activeCam = (activeCam === camOver) ? camBehind : camOver;
+      label.textContent = (activeCam === camOver) ? 'Overhead' : 'Behind Ball';
+    });
+
+    // ── Resize ────────────────────────────────────────────────────────────────
+    window.addEventListener('resize', () => {
+      const a = window.innerWidth / window.innerHeight;
+      [camOver, camBehind].forEach(c => { c.aspect = a; c.updateProjectionMatrix(); });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ── Render loop ───────────────────────────────────────────────────────────
+    (function loop() {
+      requestAnimationFrame(loop);
+
+      const now = performance.now();
+
+      // Drive ball position and camera tracking
+      if (animating) {
+        const t    = Math.min((now - animStartTime) / (ANIM_DUR * 1000), 1);
+        const bPos = ballPosAt(t);
+        ball.position.copy(bPos);
+        updateCamsForBall(bPos);
+        if (t >= 1) onAnimDone();
+      }
+
+      // Smoothly restore overhead camera to home after shot
+      if (restoring) {
+        const rt = Math.min((now - restoreStartTime) / (RESTORE_DUR * 1000), 1);
+        const s  = smoothstep(rt);
+        camOver.position.z = THREE.MathUtils.lerp(restoreCamOverZ, OVER_HOME_POS.z, s);
+        // Lerp the lookAt Z so the camera gracefully swings back up the fairway
+        camOver.lookAt(0, 0, THREE.MathUtils.lerp(restoreLookZ, OVER_HOME_LOOK.z, s));
+        if (rt >= 1) restoring = false;
+      }
+
+      renderer.render(scene, activeCam);
+    })();
+
+  })();
+  </script>
+</body>
+</html>
