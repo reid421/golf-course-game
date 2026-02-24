@@ -10,7 +10,7 @@ A mobile-first web-based golf course decision-making game. The player makes stra
 
 | File | Purpose |
 |---|---|
-| `golf-hole.html` | Main 3D hole renderer and shot simulator — the only file needed to run the full game |
+| `index.html` | Main 3D hole renderer and shot simulator — the only file needed to run the full game (renamed from `golf-hole.html`) |
 | `golf-profile-step1.html` | Original standalone profile setup UI — superseded, retained for reference |
 | `golf-poc.html` | Earlier proof-of-concept; retained for reference |
 | `Course map.png` | Reference image of the real-world course layout |
@@ -23,7 +23,7 @@ A mobile-first web-based golf course decision-making game. The player makes stra
 
 ## What's Been Built
 
-### `golf-hole.html` (active — single file, full game)
+### `index.html` (active — single file, full game; renamed from `golf-hole.html`)
 
 **3D scene**
 - Low-poly terrain, fairway (L-shaped dogleg right), green, rough ground
@@ -81,6 +81,7 @@ A mobile-first web-based golf course decision-making game. The player makes stra
 
 ## Key Technical Decisions
 
+- **Hosted on GitHub Pages at `https://reid421.github.io/golf-course-game/`** — `index.html` serves as the entry point; repo is public at `https://github.com/reid421/golf-course-game`
 - **Three.js via CDN, single HTML files, no build process** — keeps the project portable and easy to open on any device
 - **Low-poly flat-shaded aesthetic, no textures** — consistent visual style, performant on mobile
 - **Mobile-first: tap to aim, large touch targets** — primary input model is touch; mouse works as a fallback
@@ -90,6 +91,16 @@ A mobile-first web-based golf course decision-making game. The player makes stra
 - **Canvas z-index** — Three.js canvas styled `position:absolute; top:0; left:0; z-index:0` so it sits behind the HUD (z-index 10) and profile overlay (z-index 100)
 - **Player profile: handicap drives dispersion only; player inputs their own club distances** — real distances matter more than algorithm-guessed ones
 - **Shot distance from club, not click position** — ball travels the selected club's distance in the aimed direction, not to wherever the player clicked
+
+---
+
+## Repository & Deployment
+
+- **GitHub repo:** `https://github.com/reid421/golf-course-game` (public)
+- **Git user:** `reid421` / `reidstewart421@gmail.com`
+- **GitHub CLI:** installed at `C:\Program Files\GitHub CLI\gh.exe` — not on PATH by default, invoke via full path or open a new terminal after install
+- **`.gitignore` excludes:** `node_modules/`, `.env*`, `.DS_Store`, `Thumbs.db`, `desktop.ini`, `.claude/`, common editor dirs
+- **`index.html`** is the deployment entry point (renamed from `golf-hole.html` for GitHub Pages compatibility)
 
 ---
 
