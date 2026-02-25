@@ -29,6 +29,7 @@ A mobile-first web-based golf course decision-making game. The player makes stra
 - Low-poly terrain, fairway (L-shaped dogleg right), green, rough ground
 - Trees lining both fairway sections, water hazard at dogleg right edge, sand bunker beside the green, flag/pin on green
 - White ball on yellow tee at tee box
+- Ball radius defined by constant `BALL_R = 0.16` world units (~1/25th of the 8-unit flagstick) for realistic scale; both `SphereGeometry` and landing `flightEnd.y` use this constant
 
 **Camera system**
 - Behind-ball camera (execution view) and overhead camera (strategic view), toggled by Switch View button
@@ -60,10 +61,19 @@ A mobile-first web-based golf course decision-making game. The player makes stra
 - Selected club highlighted in yellow; distance shown in yds
 - Clubs over 170 yds are greyed out and unclickable when ball is in the rough
 
+**Swing power selector**
+- Segmented control docked at the bottom of the club panel (always visible in behind-ball view)
+- Four options: Full (100%), 3/4 (~78%), 1/2 (~53%), 1/4 (~28%); selected option highlighted yellow
+- Distance multipliers: Full=1.0×, 3/4=0.775×, 1/2=0.525×, 1/4=0.275×
+- Dispersion multipliers (tighter for partial swings): Full=1.0×, 3/4=0.80×, 1/2=0.65×, 1/4=0.55×
+- When a partial swing is selected, club list shows adjusted carry estimates (e.g. "~171 yds" instead of "220 yds")
+- Applied in `startFlight()` via `getSwingOpt()` — multiplies both `distMultiplier` and lateral dispersion
+
 **Stroke counter & scoring**
 - Stroke count increments on every Hit press and displayed in a centred HUD at the top of the screen
 - Water hazard penalty strokes also increment the counter
-- Hole complete triggers when ball comes to rest within 5 yards (world units) of the pin
+- **Auto-complete on green**: when ball comes to rest on the green (`detectLie` returns `'green'`), calculated putts are added automatically: ≤8 yds = 1 putt, ≤25 yds = 2 putts, 25+ yds = 3 putts; hole completes after 1.2s delay
+- Legacy hole-in check still triggers if ball stops within 5 yards of pin but not classified as green
 - Hole complete state locks the Hit button and shows the post-hole summary overlay
 - Par is hard-coded at 4 for the current hole
 
@@ -120,6 +130,9 @@ A mobile-first web-based golf course decision-making game. The player makes stra
 - **Lie detection uses geometric zone tests matching the visual meshes** — water and bunker ellipses use the same center/radii as the Three.js geometry; fairway uses point-in-polygon against the Shape vertices
 - **`lastSafePosition` saved before every shot** — used for water hazard respawn; guarantees a valid position is always available when `onBallAtRest` runs
 - **`animDur` guarded with `Math.max(..., 0.05)`** — prevents divide-by-zero if flight distance is ever zero
+- **`BALL_R` constant** — single source of truth for golf ball radius (0.16 units); used for both `SphereGeometry` radius and the ball's resting Y position (`GROUND_Y + BALL_R`) so they never drift out of sync
+- **Swing power via `SWING_POWER_OPTS` + `swingPower` state** — multipliers applied in `startFlight()` via `getSwingOpt()`; partial swings also reduce lateral dispersion so shorter shots are proportionally more accurate
+- **Auto-putt on green** — `calcPutts(distToPin)` converts world units to yards and returns 1/2/3 based on distance brackets; called from `onBallAtRest()` whenever `detectLie` returns `'green'`
 
 ---
 
@@ -135,8 +148,7 @@ A mobile-first web-based golf course decision-making game. The player makes stra
 
 ## Next Steps (priority order)
 
-1. Putting mechanics for on-green play (currently hole completes at 5 yards from pin, skipping the putt)
-2. Begin building out remaining Province Lake holes
-3. Add a multi-hole scorecard / round tracker
-4. Sound effects for shot, water splash, hole-in
-5. Mobile polish — swipe gestures, haptic feedback on hit
+1. Begin building out remaining Province Lake holes
+2. Add a multi-hole scorecard / round tracker
+3. Sound effects for shot, water splash, hole-in
+4. Mobile polish — swipe gestures, haptic feedback on hit
