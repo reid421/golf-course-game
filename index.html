@@ -202,6 +202,7 @@
     #clubListPanel {
       overflow-y: auto;
       flex: 1;
+      min-height: 0;
       -webkit-overflow-scrolling: touch;
     }
     #clubListPanel::-webkit-scrollbar { width: 3px; }
@@ -617,6 +618,53 @@
       #profileOverlay .po-card { padding: 2rem 1.25rem; }
       #profileOverlay .po-hcp-number { font-size: 2.5rem; }
     }
+
+    /* ── Swing power selector (docked inside club panel) ────────────────── */
+    #swingPowerPanel {
+      flex-shrink: 0;
+      border-top: 1px solid rgba(255,255,255,0.12);
+      padding-bottom: 4px;
+    }
+    #swingPowerPanel.hidden { display: none; }
+    #swingPowerHeader {
+      padding: 7px 10px 5px;
+      font-family: sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .swing-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 6px 12px;
+      border: none;
+      background: transparent;
+      color: rgba(255,255,255,0.75);
+      font-family: sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.1s;
+      border-left: 3px solid transparent;
+    }
+    .swing-btn:hover { background: rgba(255,255,255,0.08); }
+    .swing-btn.selected {
+      background: rgba(255, 210, 50, 0.15);
+      border-left-color: #ffd232;
+      color: #ffd232;
+    }
+    .swing-btn-pct {
+      font-size: 10px;
+      color: rgba(255,255,255,0.40);
+      font-weight: 400;
+    }
+    .swing-btn.selected .swing-btn-pct { color: rgba(255, 210, 50, 0.65); }
   </style>
 </head>
 <body>
@@ -724,6 +772,10 @@
   <div id="clubPanel" class="hidden">
     <div id="clubPanelHeader">Club</div>
     <div id="clubListPanel"></div>
+    <div id="swingPowerPanel">
+      <div id="swingPowerHeader">Swing</div>
+      <div id="swingPowerList"></div>
+    </div>
   </div>
 
   <button id="switchBtn">Switch View</button>
@@ -1011,6 +1063,21 @@
     }
   }
 
+  // ─── Swing power state ────────────────────────────────────────────────────
+  // 'full' | 'three_quarter' | 'half' | 'quarter'
+  let swingPower = 'full';
+
+  const SWING_POWER_OPTS = [
+    { key: 'full',          label: 'Full',  distMult: 1.00, dispMult: 1.00 },
+    { key: 'three_quarter', label: '3/4',   distMult: 0.775, dispMult: 0.80 },
+    { key: 'half',          label: '1/2',   distMult: 0.525, dispMult: 0.65 },
+    { key: 'quarter',       label: '1/4',   distMult: 0.275, dispMult: 0.55 },
+  ];
+
+  function getSwingOpt() {
+    return SWING_POWER_OPTS.find(o => o.key === swingPower) || SWING_POWER_OPTS[0];
+  }
+
   // ─── Scoring helpers ──────────────────────────────────────────────────────
   function getScoreName(strokes, par) {
     const diff = strokes - par;
@@ -1057,6 +1124,15 @@
       return 'Solid round. A little tighter line off the tee could save a shot.';
     }
     return 'Consider a more conservative club selection off the tee next time.';
+  }
+
+  // ─── Putt calculation based on distance from pin ──────────────────────────
+  // distToPin is in world units; convert to yards first
+  function calcPutts(distToPin) {
+    const yards = distToPin / YARDS_PER_UNIT;
+    if (yards <= 8)  return 1;
+    if (yards <= 25) return 2;
+    return 3;
   }
 
   function showSummary() {
@@ -1216,13 +1292,14 @@
   // ─── Ball & tee ───────────────────────────────────────────────────────────
   const TEE_X = 0, TEE_Z = -42;
   const GROUND_Y = 1.1;
+  const BALL_R = 0.16; // realistic radius — ~1/25th of the 8-unit flagstick height
 
   const teePeg = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 1.2, 6), new THREE.MeshLambertMaterial({ color: 0xffdd00, flatShading: true }));
   teePeg.position.set(TEE_X, GROUND_Y + 0.6, TEE_Z);
   scene.add(teePeg);
 
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.55, 7, 6), new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true }));
-  const ballPos = new THREE.Vector3(TEE_X, GROUND_Y + 1.2 + 0.55, TEE_Z);
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 7, 6), new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true }));
+  const ballPos = new THREE.Vector3(TEE_X, GROUND_Y + 1.2 + BALL_R, TEE_Z);
   ball.position.copy(ballPos);
   scene.add(ball);
 
@@ -1277,13 +1354,22 @@
 
   function buildClubPanel() {
     clubListEl.innerHTML = '';
+    const opt = getSwingOpt();
+    const isPartial = opt.key !== 'full';
     playerClubs.forEach((club, i) => {
       const btn = document.createElement('button');
       const isRestricted = currentLie === 'rough' && club.distance > 170;
       btn.className = 'club-btn' + (i === selectedClubIdx ? ' selected' : '') + (isRestricted ? ' restricted' : '');
+      let distLabel;
+      if (isPartial) {
+        const adjDist = Math.round(club.distance * opt.distMult);
+        distLabel = `~${adjDist} yds${isRestricted ? ' ⚠' : ''}`;
+      } else {
+        distLabel = `${club.distance} yds${isRestricted ? ' ⚠' : ''}`;
+      }
       btn.innerHTML =
         `<span class="club-btn-name">${club.name}</span>` +
-        `<span class="club-btn-dist">${club.distance} yds${isRestricted ? ' ⚠' : ''}</span>`;
+        `<span class="club-btn-dist">${distLabel}</span>`;
       btn.addEventListener('click', () => {
         if (isRestricted) return; // rough restriction
         selectedClubIdx = i;
@@ -1298,7 +1384,32 @@
     else         { clubPanel.classList.add('hidden');    document.body.classList.remove('show-clubs'); }
   }
 
+  // ─── Swing power panel ───────────────────────────────────────────────────
+  const swingPowerList = document.getElementById('swingPowerList');
+
+  function buildSwingPanel() {
+    if (!swingPowerList) return;
+    swingPowerList.innerHTML = '';
+    SWING_POWER_OPTS.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.className = 'swing-btn' + (opt.key === swingPower ? ' selected' : '');
+      const pctText = opt.key === 'full' ? '100%' :
+                      opt.key === 'three_quarter' ? '~78%' :
+                      opt.key === 'half' ? '~53%' : '~28%';
+      btn.innerHTML =
+        `<span>${opt.label}</span>` +
+        `<span class="swing-btn-pct">${pctText}</span>`;
+      btn.addEventListener('click', () => {
+        swingPower = opt.key;
+        buildSwingPanel();
+        buildClubPanel(); // refresh distance display
+      });
+      swingPowerList.appendChild(btn);
+    });
+  }
+
   buildClubPanel();
+  buildSwingPanel();
   showClubPanel(true);
 
   // ─── Apply profile ────────────────────────────────────────────────────────
@@ -1481,7 +1592,8 @@
 
     const club = playerClubs[selectedClubIdx];
     const variance = 1 + (Math.random() * 0.10 - 0.05);
-    let distMultiplier = variance;
+    const swingOpt = getSwingOpt();
+    let distMultiplier = variance * swingOpt.distMult;
 
     // Apply bunker penalty if active
     if (bunkerPenaltyActive) {
@@ -1496,12 +1608,12 @@
     const aimLen  = Math.sqrt(aimDirX * aimDirX + aimDirZ * aimDirZ) || 1;
     const normX = aimDirX / aimLen, normZ = aimDirZ / aimLen;
 
-    const lateralWorld = calcDispersion(playerHandicap) * YARDS_PER_UNIT;
+    const lateralWorld = calcDispersion(playerHandicap) * swingOpt.dispMult * YARDS_PER_UNIT;
     const perpX = -normZ, perpZ = normX;
 
     flightEnd.set(
       ballPos.x + normX * worldDist + perpX * lateralWorld,
-      GROUND_Y + 0.55,
+      GROUND_Y + BALL_R,
       ballPos.z + normZ * worldDist + perpZ * lateralWorld
     );
 
@@ -1553,10 +1665,27 @@
     const dxPin = ballPos.x - PIN_X, dzPin = ballPos.z - PIN_Z;
     const distToPin = Math.sqrt(dxPin * dxPin + dzPin * dzPin);
 
+    // Auto-complete if ball is on the green
+    if (lie === 'green' && !holeComplete) {
+      const putts = calcPutts(distToPin);
+      strokeCount += putts;
+      updateStrokeHud();
+      holeComplete = true;
+      setLieStatus('', false);
+      // Update overhead dist so player sees how close they finished
+      updateOverheadDist();
+      const yardsFin = Math.round(distToPin / YARDS_PER_UNIT);
+      const puttLabel = putts === 1 ? '1 putt' : `${putts} putts`;
+      document.getElementById('hitBtn').disabled = true;
+      document.getElementById('hint').textContent = `On the green — ${yardsFin} yds from pin — ${puttLabel}`;
+      setTimeout(() => { showSummary(); }, 1200);
+      return;
+    }
+
+    // Legacy direct hole-in check (within 5 yards of pin, not on green)
     if (distToPin <= HOLE_IN_RADIUS_UNITS && !holeComplete) {
       holeComplete = true;
       setLieStatus('', false);
-      // Small delay so player sees ball land, then show summary
       setTimeout(() => {
         showSummary();
       }, 800);
