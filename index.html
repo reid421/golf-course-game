@@ -1240,6 +1240,7 @@
   scene.add(green);
 
   // ─── Trees ───────────────────────────────────────────────────────────────
+  const treeGroups = [];
   function makeTree(x, y, z) {
     const group = new THREE.Group();
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.75, 3.5, 6), new THREE.MeshLambertMaterial({ color: 0x6b3a1f, flatShading: true }));
@@ -1250,6 +1251,7 @@
     group.add(canopy);
     group.position.set(x, y, z);
     scene.add(group);
+    treeGroups.push(group);
   }
   [-38, -26, -14, -2, 10, 20].forEach(z => { makeTree(-16, 1.1, z); makeTree(16, 1.1, z); });
 
@@ -1262,6 +1264,40 @@
     makeTree(bx + px * OFFSET, 1.1, bz + pz * OFFSET);
     makeTree(bx - px * OFFSET, 1.1, bz - pz * OFFSET);
   });
+
+  // ─── Tree occlusion culling ───────────────────────────────────────────────
+  // Hides trees that fall in the corridor between the camera and the ball,
+  // so they never block the behind-ball view. Trees in front of the ball
+  // are left fully visible. Called whenever the behind-ball camera moves.
+  function updateTreeVisibility(camX, camZ, bx, bz) {
+    const LATERAL_TOLERANCE = 5.5; // world units — roughly one tree canopy radius
+    const segDX = bx - camX;
+    const segDZ = bz - camZ;
+    const segLenSq = segDX * segDX + segDZ * segDZ;
+
+    treeGroups.forEach(group => {
+      const tx = group.position.x;
+      const tz = group.position.z;
+
+      // Project tree onto the camera→ball segment to find how far along it is (0=cam, 1=ball)
+      const t = segLenSq > 0
+        ? Math.max(0, Math.min(1, ((tx - camX) * segDX + (tz - camZ) * segDZ) / segLenSq))
+        : 0;
+
+      // Only consider trees between camera and ball (t in (0, 1)); trees beyond ball are fine
+      if (t <= 0 || t >= 1) {
+        group.visible = true;
+        return;
+      }
+
+      // Perpendicular distance from tree to the segment
+      const closestX = camX + t * segDX;
+      const closestZ = camZ + t * segDZ;
+      const lateralDist = Math.sqrt((tx - closestX) ** 2 + (tz - closestZ) ** 2);
+
+      group.visible = lateralDist > LATERAL_TOLERANCE;
+    });
+  }
 
   // ─── Water hazard ─────────────────────────────────────────────────────────
   const waterGeo = new THREE.CircleGeometry(1, 8);
@@ -1531,8 +1567,11 @@
     const aimDirX = aimPoint.x - ballPos.x;
     const aimDirZ = aimPoint.z - ballPos.z;
     const angle = Math.atan2(aimDirX, aimDirZ);
-    behindCam.position.set(ballPos.x - Math.sin(angle) * 20, 11, ballPos.z - Math.cos(angle) * 20);
+    const camX = ballPos.x - Math.sin(angle) * 20;
+    const camZ = ballPos.z - Math.cos(angle) * 20;
+    behindCam.position.set(camX, 11, camZ);
     behindCam.lookAt(ballPos.x + Math.sin(angle) * 10, 1, ballPos.z + Math.cos(angle) * 10);
+    updateTreeVisibility(camX, camZ, ballPos.x, ballPos.z);
   })();
 
   renderer.domElement.addEventListener('click', e => {
@@ -1556,8 +1595,11 @@
     const dirX = aimPoint.x - ballPos.x;
     const dirZ = aimPoint.z - ballPos.z;
     const angle = Math.atan2(dirX, dirZ);
-    behindCam.position.set(ballPos.x - Math.sin(angle) * 20, 11, ballPos.z - Math.cos(angle) * 20);
+    const camX = ballPos.x - Math.sin(angle) * 20;
+    const camZ = ballPos.z - Math.cos(angle) * 20;
+    behindCam.position.set(camX, 11, camZ);
     behindCam.lookAt(ballPos.x + Math.sin(angle) * 10, 1, ballPos.z + Math.cos(angle) * 10);
+    updateTreeVisibility(camX, camZ, ballPos.x, ballPos.z);
   });
 
   // ─── Animation state machine ──────────────────────────────────────────────
@@ -1701,8 +1743,11 @@
     const toFlagX = PIN_X - ballPos.x;
     const toFlagZ = PIN_Z - ballPos.z;
     const flagAngle = Math.atan2(toFlagX, toFlagZ);
-    behindCam.position.set(ballPos.x - Math.sin(flagAngle) * 20, 11, ballPos.z - Math.cos(flagAngle) * 20);
+    const flagCamX = ballPos.x - Math.sin(flagAngle) * 20;
+    const flagCamZ = ballPos.z - Math.cos(flagAngle) * 20;
+    behindCam.position.set(flagCamX, 11, flagCamZ);
     behindCam.lookAt(ballPos.x + Math.sin(flagAngle) * 10, 1, ballPos.z + Math.cos(flagAngle) * 10);
+    updateTreeVisibility(flagCamX, flagCamZ, ballPos.x, ballPos.z);
     activeCamera = behindCam;
     showClubPanel(true);
     editProfileBtn.style.display = 'none';

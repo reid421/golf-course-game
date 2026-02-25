@@ -35,6 +35,7 @@ A mobile-first web-based golf course decision-making game. The player makes stra
 - Behind-ball camera (execution view) and overhead camera (strategic view), toggled by Switch View button
 - On tee shot: camera automatically positioned behind ball aimed straight down the fairway centre
 - After each shot: camera repositions behind new ball position, automatically aimed at the pin
+- Tree occlusion culling: `updateTreeVisibility(camX, camZ, bx, bz)` hides any tree whose trunk falls within 5.5 world units of the camera→ball line segment (trees beyond the ball or behind the camera are always shown); called every time the behind-ball camera repositions
 
 **Aim mechanic**
 - Tap/click on the fairway in behind-ball view to set aim point
@@ -131,6 +132,7 @@ A mobile-first web-based golf course decision-making game. The player makes stra
 - **`lastSafePosition` saved before every shot** — used for water hazard respawn; guarantees a valid position is always available when `onBallAtRest` runs
 - **`animDur` guarded with `Math.max(..., 0.05)`** — prevents divide-by-zero if flight distance is ever zero
 - **`BALL_R` constant** — single source of truth for golf ball radius (0.16 units); used for both `SphereGeometry` radius and the ball's resting Y position (`GROUND_Y + BALL_R`) so they never drift out of sync
+- **Tree occlusion culling** — all tree groups stored in `treeGroups[]` at creation; `updateTreeVisibility()` uses point-to-segment projection to hide only trees between the camera and ball (not in front of the ball), keeping the foreground clear without removing any scenery trees
 - **Swing power via `SWING_POWER_OPTS` + `swingPower` state** — multipliers applied in `startFlight()` via `getSwingOpt()`; partial swings also reduce lateral dispersion so shorter shots are proportionally more accurate
 - **Auto-putt on green** — `calcPutts(distToPin)` converts world units to yards and returns 1/2/3 based on distance brackets; called from `onBallAtRest()` whenever `detectLie` returns `'green'`
 
